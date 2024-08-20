@@ -6,6 +6,7 @@
 // RUN: %tsan-options %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
 
 // UN: %apply %s --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 > test_out.ll
+// RUN: %apply %s --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 
 
 // CHECK-DAG: data race
@@ -13,6 +14,20 @@
 // CHECK-SYNC-NOT: data race
 
 
+// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
+// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
+
+// CHECK-LLVM-IR: invoke i32 @cudaDeviceSynchronize 
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_device 
+
+// CHECK-LLVM-IR: invoke i32 @cudaStreamDestroy
+// CHECK-LLVM-IR: invoke i32 @cudaStreamDestroy
+// CHECK-LLVM-IR: invoke i32 @cudaFree
+// CHECK-LLVM-IR: invoke void @_cusan_device_free
+// CHECK-LLVM-IR: invoke i32 @cudaFree
+// CHECK-LLVM-IR: invoke void @_cusan_device_free
 
 #include "../support/gpu_mpi.h"
 

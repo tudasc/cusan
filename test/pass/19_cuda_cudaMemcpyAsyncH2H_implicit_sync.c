@@ -5,6 +5,7 @@
 // RUN: %wrapper-cxx %tsan-compile-flags -DCUSAN_SYNC -O1 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
 // RUN: %cusan_ldpreload %tsan-options %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
 
+// RUN: %apply %s --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 // clang-format on
 
 // CHECK-DAG: data race
@@ -12,6 +13,23 @@
 
 // CHECK-SYNC-NOT: data race
 // CHECK-SYNC-NOT: [Error] sync
+
+// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
+// CHECK-LLVM-IR: invoke void @_cusan_create_stream
+// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
+// CHECK-LLVM-IR: invoke void @_cusan_create_stream
+// CHECK-LLVM-IR: invoke i32 @cudaMemset
+// CHECK-LLVM-IR: invoke void @_cusan_memset
+// CHECK-LLVM-IR: invoke i32 @cudaDeviceSynchronize
+// CHECK-LLVM-IR: invoke void @_cusan_sync_device
+// CHECK-LLVM-IR: invoke i32 @cudaMemcpyAsync
+// CHECK-LLVM-IR: invoke void @_cusan_memcpy_async
+// CHECK-LLVM-IR: invoke i32 @cudaStreamSynchronize
+// CHECK-LLVM-IR: invoke void @_cusan_sync_stream
+// CHECK-LLVM-IR: invoke i32 @cudaFree
+// CHECK-LLVM-IR: invoke void @_cusan_device_free
+// CHECK-LLVM-IR: invoke i32 @cudaStreamDestroy
+// CHECK-LLVM-IR: invoke i32 @cudaStreamDestroy
 
 #include <cstdio>
 #include <cuda_runtime.h>

@@ -5,7 +5,7 @@
 // RUN: %wrapper-mpicxx %tsan-compile-flags -DCUSAN_SYNC -O1 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
 // RUN: %cusan_ldpreload %tsan-options %mpi-exec -n 2 %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
 
-// UN: %apply %s -DCUSAN_SYNC --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 > test_out.ll
+// RUN: %apply %s --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 
 // clang-format on
 
@@ -14,6 +14,20 @@
 
 // CHECK-SYNC-NOT: data race
 // CHECK-SYNC-NOT: [Error] sync
+
+// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
+// CHECK-LLVM-IR: invoke void @_cusan_create_stream
+// CHECK-LLVM-IR: invoke i32 @cudaEventCreate
+// CHECK-LLVM-IR: invoke void @_cusan_create_event
+// CHECK-LLVM-IR: invoke i32 @cudaMemset
+// CHECK-LLVM-IR: invoke void @_cusan_memset
+// CHECK-LLVM-IR: invoke i32 @cudaEventRecord
+// CHECK-LLVM-IR: invoke void @_cusan_event_record
+// CHECK-LLVM-IR: invoke i32 @cudaFree
+// CHECK-LLVM-IR: invoke void @_cusan_device_free
+// CHECK-LLVM-IR: invoke i32 @cudaStreamDestroy
+// CHECK-LLVM-IR: invoke i32 @cudaEventDestroy
+
 
 #include "../support/gpu_mpi.h"
 

@@ -14,11 +14,18 @@
 // CHECK-SYNC-NOT: data race
 // CHECK-SYNC-NOT: [Error] sync
 
+// CHECK-LLVM-IR: invoke i32 @cudaMemset
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memset
+// CHECK-LLVM-IR: invoke i32 @cudaDeviceSynchronize
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_device
 // CHECK-LLVM-IR: invoke i32 @cudaEventCreate
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_event
 
 // CHECK-LLVM-IR: invoke i32 @cudaEventRecord
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_event_record
+// CHECK-LLVM-IR: invoke i32 @cudaEventDestroy
+// CHECK-LLVM-IR: invoke i32 @cudaFree
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_device_free
 
 #include <cstdio>
 #include <cuda_runtime.h>
