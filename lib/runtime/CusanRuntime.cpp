@@ -332,16 +332,44 @@ void _cusan_kernel_register(void** kernel_args, short* modes, int n, RawStream s
       sizes.push_back(0);
       continue;
     }
+    auto* ptr = kernel_args[i];
 
-    const auto* ptr          = kernel_args[i];
-    const auto size_in_bytes = helper::find_memory_alloc_size(runtime, ptr);
-    if (!size_in_bytes) {
+#ifndef CUSAN_TYPEART
+    // since this is a std::map it should be in ascending order
+    //"Iterators of std::map iterate in ascending order of keys, "
+    // so as soon we encoutner a pointer biger then ours we can bail and we failed
+    size_t total_bytes = 0;
+    bool found         = false;
+    for (auto alloc : runtime.get_allocations()) {
+      if (alloc.first > ptr) {
+        break;
+      }
+      if ((const char*)alloc.first + alloc.second.size > ptr) {
+        total_bytes = alloc.second.size;
+        found       = true;
+        break;
+      }
+    }
+    if (!found) {
       LOG_TRACE(" [cusan]    Querying allocation length failed on " << ptr);
       sizes.push_back(0);
       continue;
     }
-
-    sizes.push_back(size_in_bytes.value());
+#else
+    size_t alloc_size{0};
+    int alloc_id{0};
+    auto query_status = typeart_get_type(ptr, &alloc_id, &alloc_size);
+    if (query_status != TYPEART_OK) {
+      LOG_TRACE(" [cusan]    Querying allocation length failed on " << ptr << ". Code: " << int(query_status))
+      sizes.push_back(0);
+      continue;
+    }
+    const auto bytes_for_type = typeart_get_type_size(alloc_id);
+    const auto total_bytes    = bytes_for_type * alloc_size;
+    LOG_TRACE(" [cusan]    Querying allocation length of " << ptr << ". Code: " << int(query_status) << "  with size"
+                                                           << total_bytes)
+#endif
+    sizes.push_back(total_bytes);
   }
 
   runtime.stats_recorder.inc_kernel_register_calls();
