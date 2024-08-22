@@ -6,7 +6,9 @@
 
 #include "CusanRuntime.h"
 // clang-format off
+#ifdef CUSAN_TYPEART
 #include "RuntimeInterface.h"
+#endif
 #include "analysis/KernelModel.h"
 #include "support/Logger.h"
 #include "TSan_External.h"
@@ -43,6 +45,17 @@ struct AllocationInfo {
   size_t size;
   bool is_pinned  = false;
   bool is_managed = false;
+  bool on_device  = false;
+
+  static constexpr AllocationInfo Device(size_t size) {
+    return AllocationInfo{size, false, false, true};
+  }
+  static constexpr AllocationInfo Pinned(size_t size) {
+    return AllocationInfo{size, true, false, false};
+  }
+  static constexpr AllocationInfo Managed(size_t size) {
+    return AllocationInfo{size, false, true, false};
+  }
 };
 
 struct PtrAttribute {
@@ -62,6 +75,7 @@ struct PointerAccess {
 };
 
 class Runtime {
+  // NOTE: assumed to be a ordered map so we can iterate in ascending order
   std::map<const void*, AllocationInfo> allocations_;
   std::map<Stream, TsanFiber> streams_;
   std::map<Event, Stream> events_;
@@ -72,7 +86,6 @@ class Runtime {
  public:
   Recorder stats_recorder;
 
- public:
   static Runtime& get() {
     static Runtime run_t;
     if (!run_t.init_) {
@@ -93,6 +106,10 @@ class Runtime {
   Runtime(const Runtime&) = delete;
 
   void operator=(const Runtime&) = delete;
+
+  [[nodiscard]] const std::map<const void*, AllocationInfo>& get_allocations() const {
+    return allocations_;
+  }
 
   void happens_before() {
     LOG_TRACE("[cusan]    HappensBefore of curr fiber")
@@ -249,6 +266,7 @@ using namespace cusan::runtime;
 
 void _cusan_kernel_register(void** kernel_args, short* modes, int n, RawStream stream) {
   LOG_TRACE("[cusan]Kernel Register with " << n << " Args and on stream:" << stream)
+  auto& runtime = Runtime::get();
 
   llvm::SmallVector<size_t, 4> sizes;
   for (int i = 0; i < n; ++i) {
@@ -257,25 +275,46 @@ void _cusan_kernel_register(void** kernel_args, short* modes, int n, RawStream s
       sizes.push_back(0);
       continue;
     }
+    auto* ptr = kernel_args[i];
 
+#ifndef CUSAN_TYPEART
+    // since this is a std::map it should be in ascending order
+    //"Iterators of std::map iterate in ascending order of keys, "
+    // so as soon we encoutner a pointer biger then ours we can bail and we failed
+    size_t total_bytes = 0;
+    bool found         = false;
+    for (auto alloc : runtime.get_allocations()) {
+      if (alloc.first > ptr) {
+        break;
+      }
+      if ((const char*)alloc.first + alloc.second.size > ptr) {
+        total_bytes = alloc.second.size;
+        found       = true;
+        break;
+      }
+    }
+    if (!found) {
+      LOG_TRACE(" [cusan]    Querying allocation length failed on " << ptr);
+      sizes.push_back(0);
+      continue;
+    }
+#else
     size_t alloc_size{0};
     int alloc_id{0};
-    auto* ptr         = kernel_args[i];
     auto query_status = typeart_get_type(ptr, &alloc_id, &alloc_size);
     if (query_status != TYPEART_OK) {
       LOG_TRACE(" [cusan]    Querying allocation length failed on " << ptr << ". Code: " << int(query_status))
       sizes.push_back(0);
       continue;
     }
-
     const auto bytes_for_type = typeart_get_type_size(alloc_id);
     const auto total_bytes    = bytes_for_type * alloc_size;
-    LOG_TRACE(" [cusan]    Querying allocation length of " << ptr << ". Code: " << int(query_status) << "  with size "
+    LOG_TRACE(" [cusan]    Querying allocation length of " << ptr << ". Code: " << int(query_status) << "  with size"
                                                            << total_bytes)
+#endif
     sizes.push_back(total_bytes);
   }
 
-  auto& runtime = Runtime::get();
   runtime.stats_recorder.inc_kernel_register_calls();
   runtime.switch_to_stream(Stream(stream));
   for (int i = 0; i < n; ++i) {
@@ -508,7 +547,7 @@ void _cusan_memset_async(void* target, int, size_t count, RawStream stream) {
   runtime.switch_to_cpu();
 }
 
-void _cusan_stream_wait_event(RawStream stream, Event event, unsigned int flags) {
+void _cusan_stream_wait_event(RawStream stream, Event event, unsigned int) {
   LOG_TRACE("[cusan]StreamWaitEvent stream:" << stream << " on event:" << event)
   auto& runtime = Runtime::get();
   runtime.stats_recorder.inc_stream_wait_event_calls();
@@ -540,7 +579,7 @@ void _cusan_host_register(void* ptr, size_t size, unsigned int) {
   LOG_TRACE("[cusan]host register " << ptr << " with size:" << size);
   auto& runtime = Runtime::get();
   runtime.stats_recorder.inc_host_register_calls();
-  runtime.insert_allocation(ptr, AllocationInfo{size, true, false});
+  runtime.insert_allocation(ptr, AllocationInfo::Pinned(size));
 }
 void _cusan_host_unregister(void* ptr) {
   LOG_TRACE("[cusan]host unregister " << ptr);
@@ -554,7 +593,7 @@ void _cusan_managed_alloc(void** ptr, size_t size, unsigned int) {
   auto& runtime = Runtime::get();
   runtime.stats_recorder.inc_managed_alloc_calls();
   runtime.happens_after_all_streams();
-  runtime.insert_allocation(*ptr, AllocationInfo{size, false, true});
+  runtime.insert_allocation(*ptr, AllocationInfo::Managed(size));
 }
 
 void _cusan_device_alloc(void** ptr, size_t size) {
@@ -563,6 +602,8 @@ void _cusan_device_alloc(void** ptr, size_t size) {
   LOG_TRACE("[cusan]Device alloc " << *ptr << " with size " << size << " -> implicit device sync")
   auto& runtime = Runtime::get();
   runtime.stats_recorder.inc_device_alloc_calls();
+
+  runtime.insert_allocation(*ptr, AllocationInfo::Device(size));
   // runtime.switch_to_stream(Stream());
   // runtime.switch_to_cpu();
 }
