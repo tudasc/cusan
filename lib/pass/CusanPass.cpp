@@ -154,6 +154,7 @@ bool CusanPass::runOnFunc(llvm::Function& function) {
   transform::CudaStreamQuery(&cusan_decls_).instrument(function);
   transform::CudaEventQuery(&cusan_decls_).instrument(function);
   transform::StreamCreateWithFlagsInstrumenter(&cusan_decls_).instrument(function);
+  transform::CudaMallocPitch(&cusan_decls_).instrument(function);
   auto data_for_host = host::kernel_model_for_stub(&function, this->kernel_models_);
   if (data_for_host) {
     transform::CallInstrumenter(analysis::CudaKernelInvokeCollector{data_for_host.value()},
