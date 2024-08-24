@@ -335,19 +335,33 @@ void _cusan_kernel_register(void** kernel_args, short* modes, int n, RawStream s
     auto* ptr = kernel_args[i];
 
 #ifndef CUSAN_TYPEART
-    // since this is a std::map it should be in ascending order
-    //"Iterators of std::map iterate in ascending order of keys, "
-    // so as soon we encoutner a pointer biger then ours we can bail and we failed
+
     size_t total_bytes = 0;
     bool found         = false;
-    for (auto alloc : runtime.get_allocations()) {
-      if (alloc.first > ptr) {
-        break;
-      }
-      if ((const char*)alloc.first + alloc.second.size > ptr) {
-        total_bytes = alloc.second.size;
+
+    const auto& allocs = runtime.get_allocations();
+
+    // if there exists any allocation
+    if (allocs.size() > 0) {
+      // find the first allocation that is bigger or equal then what we search for
+      auto subsequent_alloc = allocs.lower_bound(ptr);
+
+      // if its equal we got our match
+      if (subsequent_alloc->first == ptr) {
+        total_bytes = subsequent_alloc->second.size;
         found       = true;
-        break;
+      }
+      // else if there exists a previous allocation
+      else if (subsequent_alloc != allocs.begin()) {
+        // it is the only one that might include our pointer
+        // since all allocations are non overlapping and the start of the allocation needs to be smaller then our ptr
+        const auto& alloc = *(subsequent_alloc--);
+        assert(alloc.first <= ptr);
+        // still gotta verify were inside tho
+        if ((const char*)alloc.first + alloc.second.size >= ptr) {
+          total_bytes = alloc.second.size;
+          found       = true;
+        }
       }
     }
     if (!found) {
