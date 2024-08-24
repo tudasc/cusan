@@ -569,26 +569,6 @@ llvm::SmallVector<Value*> CudaFree::map_arguments(IRBuilder<>& irb, llvm::ArrayR
   return {ptr};
 }
 
-// CudaMallocPitch
-
-CudaMallocPitch::CudaMallocPitch(callback::FunctionDecl* decls) {
-  setup("cudaMallocPitch", &decls->cusan_device_alloc.f);
-}
-llvm::SmallVector<Value*> CudaMallocPitch::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-  //(void** devPtr, size_t* pitch, size_t width, size_t height )
-  assert(args.size() == 4);
-  auto* ptr = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
-
-  //"The function may pad the allocation"
-  //"*pitch by cudaMallocPitch() is the width in bytes of the allocation"
-  auto* pitch = irb.CreateLoad(irb.getIntPtrTy(irb.GetInsertBlock()->getModule()->getDataLayout()), args[1]);
-  // auto* width = args[2];
-  auto* height = args[3];
-
-  auto* real_size = irb.CreateMul(pitch, height);
-  return {ptr, real_size};
-}
-
 // CudaStreamQuery
 
 CudaStreamQuery::CudaStreamQuery(callback::FunctionDecl* decls) {

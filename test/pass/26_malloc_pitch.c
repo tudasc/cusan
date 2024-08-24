@@ -5,11 +5,8 @@
 // CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMemcpy({{i8\*|ptr}} {{.*}}[[target:%[0-9a-z]+]], {{i8\*|ptr}} {{.*}}[[from:%[0-9a-z]+]],
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy({{i8\*|ptr}} {{.*}}[[target]], {{i8\*|ptr}} {{.*}}[[from]],
 
+
 #include "../support/gpu_mpi.h"
-#include <assert.h>
-
-
-#include <assert.h>
 
 __global__ void kernel(int* arr, const int N) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -30,11 +27,10 @@ int main(int argc, char* argv[]) {
     printf("This example is designed for CUDA-aware MPI. Exiting.\n");
     return 1;
   }
-  
+
   const int size            = 256;
   const int threadsPerBlock = size;
   const int blocksPerGrid   = (size + threadsPerBlock - 1) / threadsPerBlock;
-
 
   MPI_Init(&argc, &argv);
   int world_size, world_rank;
@@ -49,10 +45,10 @@ int main(int argc, char* argv[]) {
 
   int* d_data;
   size_t pitch;
-  cudaMallocPitch(&d_data, &pitch, size * sizeof(char), size);
+  cudaMallocPitch(&d_data, &pitch, size, size * sizeof(int));
 
-  size_t true_buffer_size  = pitch * size;
-  size_t true_n_elements = true_buffer_size / sizeof(int);
+  size_t true_n_elements  = pitch * size;
+  size_t true_buffer_size = true_n_elements * sizeof(int);
 
   if (world_rank == 0) {
     kernel<<<blocksPerGrid, threadsPerBlock>>>(d_data, true_n_elements);
@@ -69,11 +65,11 @@ int main(int argc, char* argv[]) {
     cudaMemcpy(h_data, d_data, true_buffer_size, cudaMemcpyDeviceToHost);
     for (int i = 0; i < true_n_elements; i++) {
       const int buf_v = h_data[i];
-      // printf("buf[%d] = %d (r%d)\n", i, buf_v, world_rank);
       if (buf_v == 0) {
         printf("[Error] sync\n");
         break;
       }
+      //      printf("buf[%d] = %d (r%d)\n", i, buf_v, world_rank);
     }
     free(h_data);
   }
