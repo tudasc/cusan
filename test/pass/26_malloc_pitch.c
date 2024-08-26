@@ -6,6 +6,8 @@
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy({{i8\*|ptr}} {{.*}}[[target]], {{i8\*|ptr}} {{.*}}[[from]],
 
 #include "../support/gpu_mpi.h"
+#include <assert.h>
+
 
 #include <assert.h>
 
