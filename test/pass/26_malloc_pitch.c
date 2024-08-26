@@ -28,21 +28,11 @@ int main(int argc, char* argv[]) {
     printf("This example is designed for CUDA-aware MPI. Exiting.\n");
     return 1;
   }
+  
+  const int size            = 256;
+  const int threadsPerBlock = size;
+  const int blocksPerGrid   = (size + threadsPerBlock - 1) / threadsPerBlock;
 
-  const int width  = 4;
-  const int height = 8;
-
-  int* d_data;
-  size_t pitch;
-  cudaMallocPitch(&d_data, &pitch, width * sizeof(int), height);
-
-  size_t true_buffer_size = pitch * height;
-  size_t true_n_elements  = true_buffer_size / sizeof(int);
-  // printf("%zu %zu %zu\n", true_buffer_size, true_n_elements, pitch);
-  assert(true_buffer_size % sizeof(int) == 0);
-
-  const int threadsPerBlock = true_n_elements;
-  const int blocksPerGrid   = (true_n_elements + threadsPerBlock - 1) / threadsPerBlock;
 
   MPI_Init(&argc, &argv);
   int world_size, world_rank;
@@ -54,6 +44,13 @@ int main(int argc, char* argv[]) {
     MPI_Finalize();
     return 1;
   }
+
+  int* d_data;
+  size_t pitch;
+  cudaMallocPitch(&d_data, &pitch, size * sizeof(char), size);
+
+  size_t true_buffer_size  = pitch * size;
+  size_t true_n_elements = true_buffer_size / sizeof(int);
 
   if (world_rank == 0) {
     kernel<<<blocksPerGrid, threadsPerBlock>>>(d_data, true_n_elements);
