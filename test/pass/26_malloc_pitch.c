@@ -57,10 +57,10 @@ int main(int argc, char* argv[]) {
 
   int* d_data;
   size_t pitch;
-  cudaMallocPitch(&d_data, &pitch, size, size * sizeof(int));
+  cudaMallocPitch(&d_data, &pitch, size * sizeof(char), size);
 
-  size_t true_n_elements  = pitch * size;
-  size_t true_buffer_size = true_n_elements * sizeof(int);
+  size_t true_buffer_size  = pitch * size;
+  size_t true_n_elements = true_buffer_size / sizeof(int);
 
   if (world_rank == 0) {
     kernel<<<blocksPerGrid, threadsPerBlock>>>(d_data, true_n_elements);
