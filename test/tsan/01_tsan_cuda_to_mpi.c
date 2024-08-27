@@ -1,16 +1,22 @@
 // clang-format off
-// TODO: Fix segfault when program terminates.
-
 // RUN: %wrapper-mpicxx %tsan-compile-flags -O2 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
 // RUN: %tsan-options %mpi-exec -n 2 %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s
 
 // RUN: %wrapper-mpicxx %tsan-compile-flags -DCUSAN_SYNC -O2 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
 // RUN: %tsan-options %mpi-exec -n 2 %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
+
+// RUN: %apply %s --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
+
 // clang-format on
 
 // CHECK: [Error] sync
 
 // CHECK-SYNC-NOT: [Error] sync
+
+// CHECK-LLVM-IR: invoke i32 @cudaMemcpy
+// CHECK-LLVM-IR: invoke void @_cusan_memcpy
+// CHECK-LLVM-IR: invoke i32 @cudaFree
+// CHECK-LLVM-IR: invoke void @_cusan_device_free
 
 #include "../support/gpu_mpi.h"
 

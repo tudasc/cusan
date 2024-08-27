@@ -2,15 +2,29 @@
 // RUN: %wrapper-mpicxx %tsan-compile-flags -O2 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
 // RUN: %cusan_ldpreload %tsan-options %mpi-exec -n 2 %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s -DFILENAME=%s
 
-// UN: %wrapper-mpicxx %tsan-compile-flags -DCUSAN_SYNC -O2 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
-// UN: %cusan_ldpreload %tsan-options %mpi-exec -n 2 %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-SYNC
+// RUN: %apply %s --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 // clang-format on
 
 // CHECK-NOT: data race
 // CHECK-NOT: [Error] sync
 
-// HECK-SYNC-NOT: data race
-// HECK-SYNC-NOT: [Error] sync
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamCreate
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamCreate
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamSynchronize
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_stream
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaMemcpyAsync
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy_async
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamSynchronize
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_stream
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaMemcpy
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaFree
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_device_free
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamDestroy
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamDestroy
+
 
 #include <cstdio>
 #include <cuda_runtime.h>
