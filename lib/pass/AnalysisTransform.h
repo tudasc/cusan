@@ -225,15 +225,13 @@ class CudaMallocPitch : public SimpleInstrumenter<CudaMallocPitch> {
     //"The function may pad the allocation"
     //"*pitch by cudaMallocPitch() is the width in bytes of the allocation"
     auto* pitch = irb.CreateLoad(irb.getIntPtrTy(irb.GetInsertBlock()->getModule()->getDataLayout()), args[1]);
-    //auto* width = args[2];
+    // auto* width = args[2];
     auto* height = args[3];
 
     auto* real_size = irb.CreateMul(pitch, height);
     return {ptr, real_size};
   }
 };
-
-
 
 class CudaStreamQuery : public SimpleInstrumenter<CudaStreamQuery> {
  public:
