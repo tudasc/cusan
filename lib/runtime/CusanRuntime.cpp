@@ -404,88 +404,6 @@ void _cusan_create_stream(RawStream* stream, cusan_StreamCreateFlags flags) {
   runtime.register_stream(Stream(*stream, !(bool)(flags & cusan_StreamFlagsNonBlocking)));
 }
 
-void _cusan_memcpy(void* target, const void* from, size_t count, cusan_MemcpyKind kind) {
-  // NOTE: at least for cuda non async memcpy is beheaving like on the default stream
-  // https://forums.developer.nvidia.com/t/is-cudamemcpyasync-cudastreamsynchronize-on-default-stream-equal-to-cudamemcpy-non-async/108853/5
-  LOG_TRACE("[cusan]Memcpy " << count << " bytes from:" << from << " to:" << target)
-
-  if (kind == cusan_MemcpyDefault) {
-    kind = infer_memcpy_direction(target, from);
-  }
-
-  auto& runtime = Runtime::get();
-  runtime.stats_recorder.inc_memcpy_calls();
-  if (CUSAN_SYNC_DETAIL_LEVEL == 0) {
-    LOG_TRACE("[cusan]   DefaultStream+Blocking")
-    // In this mode: Memcpy always blocks, no detailed view w.r.t. memory direction
-    runtime.switch_to_stream(Stream());
-    TsanMemoryReadPC(from, count, __builtin_return_address(0));
-    runtime.stats_recorder.inc_TsanMemoryRead();
-    TsanMemoryWritePC(target, count, __builtin_return_address(0));
-    runtime.stats_recorder.inc_TsanMemoryWrite();
-    runtime.happens_before();
-    runtime.switch_to_cpu();
-    runtime.happens_after_stream(Stream());
-  } else if (kind == cusan_MemcpyDeviceToDevice) {
-    // 4. For transfers from device memory to device memory, no host-side synchronization is performed.
-    LOG_TRACE("[cusan]   DefaultStream")
-    runtime.switch_to_stream(Stream());
-    TsanMemoryReadPC(from, count, __builtin_return_address(0));
-    runtime.stats_recorder.inc_TsanMemoryRead();
-    TsanMemoryWritePC(target, count, __builtin_return_address(0));
-    runtime.happens_before();
-    runtime.switch_to_cpu();
-  } else if (kind == cusan_MemcpyDeviceToHost) {
-    // 3. For transfers from device to either pageable or pinned host memory, the function returns only once the copy
-    // has completed.
-    LOG_TRACE("[cusan]   DefaultStream+Blocking")
-    runtime.switch_to_stream(Stream());
-    TsanMemoryReadPC(from, count, __builtin_return_address(0));
-    runtime.stats_recorder.inc_TsanMemoryRead();
-    TsanMemoryWritePC(target, count, __builtin_return_address(0));
-    runtime.stats_recorder.inc_TsanMemoryWrite();
-    runtime.happens_before();
-    runtime.switch_to_cpu();
-    runtime.happens_after_stream(Stream());
-  } else if (kind == cusan_MemcpyHostToDevice) {
-    // 1. For transfers from pageable host memory to device memory, a stream sync is performed before the copy is
-    // initiated.
-
-    auto* alloc_info = runtime.get_allocation_info(from);
-    // if we couldn't find alloc info we just assume the worst and don't sync
-    if (alloc_info && !alloc_info->is_pinned) {
-      runtime.happens_after_stream(Stream());
-      LOG_TRACE("[cusan]   DefaultStream+Blocking")
-    } else {
-      LOG_TRACE("[cusan]   DefaultStream")
-    }
-    //   The function will return once the pageable buffer has been copied to the staging memory for DMA transfer to
-    //   device memory
-    TsanMemoryReadPC(from, count, __builtin_return_address(0));
-    runtime.stats_recorder.inc_TsanMemoryRead();
-    runtime.switch_to_stream(Stream());
-    TsanMemoryWritePC(target, count, __builtin_return_address(0));
-    runtime.stats_recorder.inc_TsanMemoryWrite();
-    runtime.happens_before();
-    runtime.switch_to_cpu();
-    runtime.happens_after_stream(Stream());
-  } else if (kind == cusan_MemcpyHostToHost) {
-    // 5. For transfers from any host memory to any host memory, the function is fully synchronous with respect to the
-    // host.
-    LOG_TRACE("[cusan]   DefaultStream+Blocking")
-    runtime.switch_to_stream(Stream());
-    runtime.happens_before();
-    runtime.switch_to_cpu();
-    runtime.happens_after_stream(Stream());
-    TsanMemoryReadPC(from, count, __builtin_return_address(0));
-    runtime.stats_recorder.inc_TsanMemoryRead();
-    TsanMemoryWritePC(target, count, __builtin_return_address(0));
-    runtime.stats_recorder.inc_TsanMemoryWrite();
-  } else {
-    assert(false && "Should be unreachable");
-  }
-}
-
 void _cusan_memset(void* target, int, size_t count) {
   // The cudaMemset functions are asynchronous with respect to the host except when the target memory is pinned host
   // memory.
@@ -514,39 +432,6 @@ void _cusan_memset(void* target, int, size_t count) {
   }
 
   // r.happens_after_stream(Stream());
-}
-
-void _cusan_memcpy_async(void* target, const void* from, size_t count, cusan_MemcpyKind kind, RawStream stream) {
-  LOG_TRACE("[cusan]MemcpyAsync" << count << " bytes to:" << target)
-  auto& runtime = Runtime::get();
-  runtime.stats_recorder.inc_memcpy_async_calls();
-  if (kind == cusan_MemcpyHostToHost && CUSAN_SYNC_DETAIL_LEVEL == 1) {
-    // 2. For transfers from any host memory to any host memory, the function is fully synchronous with respect to the
-    // host.
-    LOG_TRACE("[cusan]   Blocking")
-    runtime.switch_to_stream(Stream(stream));
-    TsanMemoryReadPC(from, count, __builtin_return_address(0));
-    runtime.stats_recorder.inc_TsanMemoryRead();
-    TsanMemoryWritePC(target, count, __builtin_return_address(0));
-    runtime.stats_recorder.inc_TsanMemoryWrite();
-    runtime.happens_before();
-    runtime.switch_to_cpu();
-    runtime.happens_after_stream(Stream(stream));
-  } else {
-    // 1. For transfers between device memory and pageable host memory, the function *might* be synchronous with respect
-    // to host.
-    // 2. If pageable memory must first be staged to pinned memory, the driver *may* synchronize with the stream and
-    // stage the copy into pinned memory.
-    // 4. For all other transfers, the function should be fully asynchronous.
-    LOG_TRACE("[cusan]   not Blocking")
-    runtime.switch_to_stream(Stream(stream));
-    TsanMemoryReadPC(from, count, __builtin_return_address(0));
-    runtime.stats_recorder.inc_TsanMemoryRead();
-    TsanMemoryWritePC(target, count, __builtin_return_address(0));
-    runtime.stats_recorder.inc_TsanMemoryWrite();
-    runtime.happens_before();
-    runtime.switch_to_cpu();
-  }
 }
 
 void _cusan_memset_async(void* target, int, size_t count, RawStream stream) {
@@ -651,4 +536,146 @@ void _cusan_event_query(Event event, unsigned int err) {
     LOG_TRACE("[cusan]    syncing")
     runtime.sync_event(event);
   }
+}
+
+void _cusan_memcpy_async_impl(void* target, size_t write_size, const void* from, size_t read_size,
+                              cusan_MemcpyKind kind, RawStream stream) {
+  auto& runtime = Runtime::get();
+  runtime.stats_recorder.inc_memcpy_async_calls();
+  if (kind == cusan_MemcpyHostToHost && CUSAN_SYNC_DETAIL_LEVEL == 1) {
+    // 2. For transfers from any host memory to any host memory, the function is fully synchronous with respect to the
+    // host.
+    LOG_TRACE("[cusan]   Blocking")
+    runtime.switch_to_stream(Stream(stream));
+    TsanMemoryReadPC(from, read_size, __builtin_return_address(0));
+    runtime.stats_recorder.inc_TsanMemoryRead();
+    TsanMemoryWritePC(target, write_size, __builtin_return_address(0));
+    runtime.stats_recorder.inc_TsanMemoryWrite();
+    runtime.happens_before();
+    runtime.switch_to_cpu();
+    runtime.happens_after_stream(Stream(stream));
+  } else {
+    // 1. For transfers between device memory and pageable host memory, the function *might* be synchronous with respect
+    // to host.
+    // 2. If pageable memory must first be staged to pinned memory, the driver *may* synchronize with the stream and
+    // stage the copy into pinned memory.
+    // 4. For all other transfers, the function should be fully asynchronous.
+    LOG_TRACE("[cusan]   not Blocking")
+    runtime.switch_to_stream(Stream(stream));
+    TsanMemoryReadPC(from, read_size, __builtin_return_address(0));
+    runtime.stats_recorder.inc_TsanMemoryRead();
+    TsanMemoryWritePC(target, write_size, __builtin_return_address(0));
+    runtime.stats_recorder.inc_TsanMemoryWrite();
+    runtime.happens_before();
+    runtime.switch_to_cpu();
+  }
+}
+
+void _cusan_memcpy_impl(void* target, size_t write_size, const void* from, size_t read_size, cusan_MemcpyKind kind) {
+  // TODO verify that the memcpy2d beheaviour is actually the same as normal memcpy
+
+  if (kind == cusan_MemcpyDefault) {
+    kind = infer_memcpy_direction(target, from);
+  }
+
+  auto& runtime = Runtime::get();
+  runtime.stats_recorder.inc_memcpy_calls();
+  if (CUSAN_SYNC_DETAIL_LEVEL == 0) {
+    LOG_TRACE("[cusan]   DefaultStream+Blocking")
+    // In this mode: Memcpy always blocks, no detailed view w.r.t. memory direction
+    runtime.switch_to_stream(Stream());
+    TsanMemoryReadPC(from, read_size, __builtin_return_address(0));
+    runtime.stats_recorder.inc_TsanMemoryRead();
+    TsanMemoryWritePC(target, write_size, __builtin_return_address(0));
+    runtime.stats_recorder.inc_TsanMemoryWrite();
+    runtime.happens_before();
+    runtime.switch_to_cpu();
+    runtime.happens_after_stream(Stream());
+  } else if (kind == cusan_MemcpyDeviceToDevice) {
+    // 4. For transfers from device memory to device memory, no host-side synchronization is performed.
+    LOG_TRACE("[cusan]   DefaultStream")
+    runtime.switch_to_stream(Stream());
+    TsanMemoryReadPC(from, read_size, __builtin_return_address(0));
+    runtime.stats_recorder.inc_TsanMemoryRead();
+    TsanMemoryWritePC(target, write_size, __builtin_return_address(0));
+    runtime.happens_before();
+    runtime.switch_to_cpu();
+  } else if (kind == cusan_MemcpyDeviceToHost) {
+    // 3. For transfers from device to either pageable or pinned host memory, the function returns only once the copy
+    // has completed.
+    LOG_TRACE("[cusan]   DefaultStream+Blocking")
+    runtime.switch_to_stream(Stream());
+    TsanMemoryReadPC(from, read_size, __builtin_return_address(0));
+    runtime.stats_recorder.inc_TsanMemoryRead();
+    TsanMemoryWritePC(target, write_size, __builtin_return_address(0));
+    runtime.stats_recorder.inc_TsanMemoryWrite();
+    runtime.happens_before();
+    runtime.switch_to_cpu();
+    runtime.happens_after_stream(Stream());
+  } else if (kind == cusan_MemcpyHostToDevice) {
+    // 1. For transfers from pageable host memory to device memory, a stream sync is performed before the copy is
+    // initiated.
+
+    auto* alloc_info = runtime.get_allocation_info(from);
+    // if we couldn't find alloc info we just assume the worst and don't sync
+    if (alloc_info && !alloc_info->is_pinned) {
+      runtime.happens_after_stream(Stream());
+      LOG_TRACE("[cusan]   DefaultStream+Blocking")
+    } else {
+      LOG_TRACE("[cusan]   DefaultStream")
+    }
+    //   The function will return once the pageable buffer has been copied to the staging memory for DMA transfer to
+    //   device memory
+    TsanMemoryReadPC(from, read_size, __builtin_return_address(0));
+    runtime.stats_recorder.inc_TsanMemoryRead();
+    runtime.switch_to_stream(Stream());
+    TsanMemoryWritePC(target, write_size, __builtin_return_address(0));
+    runtime.stats_recorder.inc_TsanMemoryWrite();
+    runtime.happens_before();
+    runtime.switch_to_cpu();
+    runtime.happens_after_stream(Stream());
+  } else if (kind == cusan_MemcpyHostToHost) {
+    // 5. For transfers from any host memory to any host memory, the function is fully synchronous with respect to the
+    // host.
+    LOG_TRACE("[cusan]   DefaultStream+Blocking")
+    runtime.switch_to_stream(Stream());
+    runtime.happens_before();
+    runtime.switch_to_cpu();
+    runtime.happens_after_stream(Stream());
+    TsanMemoryReadPC(from, read_size, __builtin_return_address(0));
+    runtime.stats_recorder.inc_TsanMemoryRead();
+    TsanMemoryWritePC(target, write_size, __builtin_return_address(0));
+    runtime.stats_recorder.inc_TsanMemoryWrite();
+  } else {
+    assert(false && "Should be unreachable");
+  }
+}
+
+
+
+void _cusan_memcpy_2d_async(void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height,
+                            cusan_MemcpyKind kind, RawStream stream) {
+  LOG_TRACE("[cusan]MemcpyAsync" << width * height << " bytes to:" << target)
+
+  size_t read_size  = spitch * height;
+  size_t write_size = dpitch * height;
+  _cusan_memcpy_async_impl(target, write_size, from, read_size, kind, stream);
+}
+
+void _cusan_memcpy_async(void* target, const void* from, size_t count, cusan_MemcpyKind kind, RawStream stream) {
+  LOG_TRACE("[cusan]MemcpyAsync" << count << " bytes to:" << target)
+  _cusan_memcpy_async_impl(target, count, from, count, kind, stream);
+}
+
+void _cusan_memcpy_2d(void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height,
+                      cusan_MemcpyKind kind) {
+  LOG_TRACE("[cusan]Memcpy2d " << width * height << " from:" << from << " to:" << target);
+  size_t read_size  = spitch * height;
+  size_t write_size = dpitch * height;
+  _cusan_memcpy_impl(target, write_size, from, read_size, kind);
+}
+
+void _cusan_memcpy(void* target, const void* from, size_t count, cusan_MemcpyKind kind) {
+  LOG_TRACE("[cusan]Memcpy " << count << " from:" << from << " to:" << target);
+  _cusan_memcpy_impl(target, count, from, count, kind);
 }

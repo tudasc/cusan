@@ -138,10 +138,12 @@ bool CusanPass::runOnFunc(llvm::Function& function) {
   transform::EventRecordFlagsInstrumenter(&cusan_decls_).instrument(function);
   transform::EventCreateInstrumenter(&cusan_decls_).instrument(function);
   transform::StreamCreateInstrumenter(&cusan_decls_).instrument(function);
-  transform::MemsetAsyncInstrumenter(&cusan_decls_).instrument(function);
-  transform::MemcpyAsyncInstrumenter(&cusan_decls_).instrument(function);
+  transform::CudaMemsetAsyncInstrumenter(&cusan_decls_).instrument(function);
+  transform::CudaMemcpyAsyncInstrumenter(&cusan_decls_).instrument(function);
   transform::CudaMemsetInstrumenter(&cusan_decls_).instrument(function);
   transform::CudaMemcpyInstrumenter(&cusan_decls_).instrument(function);
+  transform::CudaMemcpy2DInstrumenter(&cusan_decls_).instrument(function);
+  transform::CudaMemcpy2DAsyncInstrumenter(&cusan_decls_).instrument(function);
   transform::StreamWaitEventInstrumenter(&cusan_decls_).instrument(function);
   transform::CudaMallocHost(&cusan_decls_).instrument(function);
   transform::CudaHostAlloc(&cusan_decls_).instrument(function);

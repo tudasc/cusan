@@ -52,6 +52,8 @@ void _cusan_create_stream(RawStream* stream, cusan_StreamCreateFlags flags);
 void _cusan_memcpy_async(void* target, const void* from, size_t count, cusan_MemcpyKind kind, RawStream stream);
 void _cusan_memset_async(void* target, int, size_t count, RawStream stream);
 void _cusan_memcpy(void* target, const void* from, size_t count, cusan_MemcpyKind);
+void _cusan_memcpy_2d(void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height, cusan_MemcpyKind);
+void _cusan_memcpy_2d_async(void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height, cusan_MemcpyKind, RawStream stream);
 void _cusan_memset(void* target, int, size_t count);
 void _cusan_stream_wait_event(RawStream stream, Event event, unsigned int flags);
 void _cusan_stream_wait_event(RawStream stream, Event event, unsigned int flags);

@@ -352,9 +352,9 @@ class EventRecordFlagsInstrumenter : public SimpleInstrumenter<EventRecordFlagsI
   }
 };
 
-class MemcpyAsyncInstrumenter : public SimpleInstrumenter<MemcpyAsyncInstrumenter> {
+class CudaMemcpyAsyncInstrumenter : public SimpleInstrumenter<CudaMemcpyAsyncInstrumenter> {
  public:
-  MemcpyAsyncInstrumenter(callback::FunctionDecl* decls) {
+  CudaMemcpyAsyncInstrumenter(callback::FunctionDecl* decls) {
     setup("cudaMemcpyAsync", &decls->cusan_memcpy_async.f);
   }
   static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
@@ -385,9 +385,49 @@ class CudaMemcpyInstrumenter : public SimpleInstrumenter<CudaMemcpyInstrumenter>
   }
 };
 
-class MemsetAsyncInstrumenter : public SimpleInstrumenter<MemsetAsyncInstrumenter> {
+class CudaMemcpy2DInstrumenter : public SimpleInstrumenter<CudaMemcpy2DInstrumenter> {
  public:
-  MemsetAsyncInstrumenter(callback::FunctionDecl* decls) {
+  CudaMemcpy2DInstrumenter(callback::FunctionDecl* decls) {
+    setup("cudaMemcpy2D", &decls->cusan_memcpy_2d.f);
+  }
+  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+    // void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height, cusan_MemcpyKind kind
+    assert(args.size() == 7);
+    auto* dst_ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
+    auto* dpitch  = args[1];
+    auto* src_ptr = irb.CreateBitOrPointerCast(args[2], irb.getInt8PtrTy());
+    auto* spitch  = args[3];
+    auto* width   = args[4];
+    auto* height  = args[5];
+    auto* kind    = args[6];
+    return {dst_ptr, dpitch, src_ptr, spitch, width, height, kind};
+  }
+};
+
+class CudaMemcpy2DAsyncInstrumenter : public SimpleInstrumenter<CudaMemcpy2DAsyncInstrumenter> {
+ public:
+  CudaMemcpy2DAsyncInstrumenter(callback::FunctionDecl* decls) {
+    setup("cudaMemcpy2DAsync", &decls->cusan_memcpy_2d_async.f);
+  }
+  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+    // void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height, cusan_MemcpyKind kind,
+    // stream
+    assert(args.size() == 8);
+    auto* dst_ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
+    auto* dpitch  = args[1];
+    auto* src_ptr = irb.CreateBitOrPointerCast(args[2], irb.getInt8PtrTy());
+    auto* spitch  = args[3];
+    auto* width   = args[4];
+    auto* height  = args[5];
+    auto* kind    = args[6];
+    auto* cu_stream = irb.CreateBitOrPointerCast(args[7], irb.getInt8PtrTy());
+    return {dst_ptr, dpitch, src_ptr, spitch, width, height, kind, cu_stream};
+  }
+};
+
+class CudaMemsetAsyncInstrumenter : public SimpleInstrumenter<CudaMemsetAsyncInstrumenter> {
+ public:
+  CudaMemsetAsyncInstrumenter(callback::FunctionDecl* decls) {
     setup("cudaMemsetAsync", &decls->cusan_memset_async.f);
   }
   static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
@@ -589,20 +629,18 @@ class CudaMallocPitch : public SimpleInstrumenter<CudaMallocPitch> {
   static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
     //(void** devPtr, size_t* pitch, size_t width, size_t height )
     assert(args.size() == 4);
-    auto* ptr  = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
+    auto* ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
 
     //"The function may pad the allocation"
     //"*pitch by cudaMallocPitch() is the width in bytes of the allocation"
     auto* pitch = irb.CreateLoad(irb.getIntPtrTy(irb.GetInsertBlock()->getModule()->getDataLayout()), args[1]);
-    //auto* width = args[2];
+    // auto* width = args[2];
     auto* height = args[3];
 
     auto* real_size = irb.CreateMul(pitch, height);
     return {ptr, real_size};
   }
 };
-
-
 
 class CudaStreamQuery : public SimpleInstrumenter<CudaStreamQuery> {
  public:

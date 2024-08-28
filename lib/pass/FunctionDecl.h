@@ -33,6 +33,8 @@ struct FunctionDecl {
   CusanFunction cusan_memcpy_async{"_cusan_memcpy_async"};
   CusanFunction cusan_memset{"_cusan_memset"};
   CusanFunction cusan_memcpy{"_cusan_memcpy"};
+  CusanFunction cusan_memcpy_2d{"_cusan_memcpy_2d"};
+  CusanFunction cusan_memcpy_2d_async{"_cusan_memcpy_2d_async"};
   CusanFunction cusan_stream_wait_event{"_cusan_stream_wait_event"};
   CusanFunction cusan_host_alloc{"_cusan_host_alloc"};
   CusanFunction cusan_managed_alloc{"_cusan_managed_alloc"};
@@ -146,6 +148,16 @@ struct FunctionDecl {
     // Event stream, u32 return_errType
     ArgTypes arg_event_query = {Type::getInt8PtrTy(c), Type::getInt32Ty(c)};
     make_function(cusan_event_query, arg_event_query);
+
+    // void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height, cusan_MemcpyKind kind
+    ArgTypes arg_types_memcpy_2d = {
+        Type::getInt8PtrTy(c), size_t_ty, Type::getInt8PtrTy(c), size_t_ty, size_t_ty, size_t_ty, Type::getInt32Ty(c)};
+    make_function(cusan_memcpy_2d, arg_types_memcpy_2d);
+
+        // void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height, cusan_MemcpyKind kind
+    ArgTypes arg_types_memcpy_2d_async = {
+        Type::getInt8PtrTy(c), size_t_ty, Type::getInt8PtrTy(c), size_t_ty, size_t_ty, size_t_ty, Type::getInt32Ty(c), Type::getInt8PtrTy(c)};
+    make_function(cusan_memcpy_2d_async, arg_types_memcpy_2d_async);
   }
 };
 
