@@ -404,48 +404,6 @@ void _cusan_create_stream(RawStream* stream, cusan_StreamCreateFlags flags) {
   runtime.register_stream(Stream(*stream, !(bool)(flags & cusan_StreamFlagsNonBlocking)));
 }
 
-void _cusan_memset(void* target, int, size_t count) {
-  // The cudaMemset functions are asynchronous with respect to the host except when the target memory is pinned host
-  // memory.
-  LOG_TRACE("[cusan]Memset " << count << " bytes to:" << target)
-  auto& runtime = Runtime::get();
-  runtime.stats_recorder.inc_memset_calls();
-  runtime.switch_to_stream(Stream());
-  LOG_TRACE("[cusan]    " << "Write to " << target << " with size: " << count)
-  TsanMemoryWritePC(target, count, __builtin_return_address(0));
-  runtime.stats_recorder.inc_TsanMemoryWrite();
-  runtime.happens_before();
-  runtime.switch_to_cpu();
-
-  auto* alloc_info = runtime.get_allocation_info(target);
-  // if we couldn't find alloc info we just assume the worst and don't sync
-  if ((alloc_info && (alloc_info->is_pinned || alloc_info->is_managed)) || CUSAN_SYNC_DETAIL_LEVEL == 0) {
-    LOG_TRACE("[cusan]    " << "Memset is blocking")
-    runtime.happens_after_stream(Stream());
-  } else {
-    LOG_TRACE("[cusan]    " << "Memset is not blocking")
-    if (!alloc_info) {
-      LOG_DEBUG("[cusan]    Failed to get alloc info " << target);
-    } else if (!alloc_info->is_pinned && !alloc_info->is_managed) {
-      LOG_TRACE("[cusan]    Pinned:" << alloc_info->is_pinned << " Managed:" << alloc_info->is_managed)
-    }
-  }
-
-  // r.happens_after_stream(Stream());
-}
-
-void _cusan_memset_async(void* target, int, size_t count, RawStream stream) {
-  // The Async versions are always asynchronous with respect to the host.
-  LOG_TRACE("[cusan]MemsetAsync" << count << " bytes to:" << target)
-  auto& runtime = Runtime::get();
-  runtime.stats_recorder.inc_memset_async_calls();
-  runtime.switch_to_stream(Stream(stream));
-  TsanMemoryWritePC(target, count, __builtin_return_address(0));
-  runtime.stats_recorder.inc_TsanMemoryWrite();
-  runtime.happens_before();
-  runtime.switch_to_cpu();
-}
-
 void _cusan_stream_wait_event(RawStream stream, Event event, unsigned int) {
   LOG_TRACE("[cusan]StreamWaitEvent stream:" << stream << " on event:" << event)
   auto& runtime = Runtime::get();
@@ -536,6 +494,62 @@ void _cusan_event_query(Event event, unsigned int err) {
     LOG_TRACE("[cusan]    syncing")
     runtime.sync_event(event);
   }
+}
+
+void _cusan_memset_async_impl(void* target, size_t count, RawStream stream) {
+  // The Async versions are always asynchronous with respect to the host.
+  auto& runtime = Runtime::get();
+  runtime.stats_recorder.inc_memset_async_calls();
+  runtime.switch_to_stream(Stream(stream));
+  TsanMemoryWritePC(target, count, __builtin_return_address(0));
+  runtime.stats_recorder.inc_TsanMemoryWrite();
+  runtime.happens_before();
+  runtime.switch_to_cpu();
+}
+void _cusan_memset_impl(void* target, size_t count) {
+  // The cudaMemset functions are asynchronous with respect to the host except when the target memory is pinned host
+  // memory.
+  auto& runtime = Runtime::get();
+  runtime.stats_recorder.inc_memset_calls();
+  runtime.switch_to_stream(Stream());
+  LOG_TRACE("[cusan]    " << "Write to " << target << " with size: " << count)
+  TsanMemoryWritePC(target, count, __builtin_return_address(0));
+  runtime.stats_recorder.inc_TsanMemoryWrite();
+  runtime.happens_before();
+  runtime.switch_to_cpu();
+
+  auto* alloc_info = runtime.get_allocation_info(target);
+  // if we couldn't find alloc info we just assume the worst and don't sync
+  if ((alloc_info && (alloc_info->is_pinned || alloc_info->is_managed)) || CUSAN_SYNC_DETAIL_LEVEL == 0) {
+    LOG_TRACE("[cusan]    " << "Memset is blocking")
+    runtime.happens_after_stream(Stream());
+  } else {
+    LOG_TRACE("[cusan]    " << "Memset is not blocking")
+    if (!alloc_info) {
+      LOG_DEBUG("[cusan]    Failed to get alloc info " << target);
+    } else if (!alloc_info->is_pinned && !alloc_info->is_managed) {
+      LOG_TRACE("[cusan]    Pinned:" << alloc_info->is_pinned << " Managed:" << alloc_info->is_managed)
+    }
+  }
+
+  // r.happens_after_stream(Stream());
+}
+
+void _cusan_memset_2d(void* target, size_t pitch, size_t, size_t height, cusan_MemcpyKind) {
+  _cusan_memset_impl(target, pitch * height);
+}
+void _cusan_memset_2d_async(void* target, size_t pitch, size_t, size_t height, cusan_MemcpyKind, RawStream stream) {
+  _cusan_memset_async_impl(target, pitch * height, stream);
+}
+
+void _cusan_memset(void* target, size_t count) {
+  LOG_TRACE("[cusan]Memset " << count << " bytes to:" << target)
+  _cusan_memset_impl(target, count);
+}
+
+void _cusan_memset_async(void* target, size_t count, RawStream stream) {
+  LOG_TRACE("[cusan]MemsetAsync" << count << " bytes to:" << target)
+  _cusan_memset_async_impl(target, count, stream);
 }
 
 void _cusan_memcpy_async_impl(void* target, size_t write_size, const void* from, size_t read_size,
@@ -650,8 +664,6 @@ void _cusan_memcpy_impl(void* target, size_t write_size, const void* from, size_
     assert(false && "Should be unreachable");
   }
 }
-
-
 
 void _cusan_memcpy_2d_async(void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height,
                             cusan_MemcpyKind kind, RawStream stream) {

@@ -4,9 +4,10 @@
 // (See accompanying file LICENSE)
 // SPDX-License-Identifier: BSD-3-Clause
 
+#include "CusanPass.h"
+
 #include "AnalysisTransform.h"
 #include "CommandLine.h"
-#include "CusanPass.h"
 #include "FunctionDecl.h"
 #include "analysis/KernelAnalysis.h"
 #include "support/CudaUtil.h"
@@ -138,8 +139,10 @@ bool CusanPass::runOnFunc(llvm::Function& function) {
   transform::EventRecordFlagsInstrumenter(&cusan_decls_).instrument(function);
   transform::EventCreateInstrumenter(&cusan_decls_).instrument(function);
   transform::StreamCreateInstrumenter(&cusan_decls_).instrument(function);
+  transform::CudaMemset2dAsyncInstrumenter(&cusan_decls_).instrument(function);
   transform::CudaMemsetAsyncInstrumenter(&cusan_decls_).instrument(function);
   transform::CudaMemcpyAsyncInstrumenter(&cusan_decls_).instrument(function);
+  transform::CudaMemset2dInstrumenter(&cusan_decls_).instrument(function);
   transform::CudaMemsetInstrumenter(&cusan_decls_).instrument(function);
   transform::CudaMemcpyInstrumenter(&cusan_decls_).instrument(function);
   transform::CudaMemcpy2DInstrumenter(&cusan_decls_).instrument(function);

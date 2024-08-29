@@ -41,8 +41,11 @@ int main(int argc, char* argv[]) {
   size_t pitch;
   // allocations
   cudaMallocPitch(&d_data, &pitch, width * sizeof(int), height);
+
+  int* dummy_d_data;
+  size_t dummy_pitch;
+  cudaMallocPitch(&dummy_d_data, &dummy_pitch, width * sizeof(int), height);
   int* h_data       = (int*)malloc(width * sizeof(int) * height);
-  int* dummy_h_data = (int*)malloc(width * sizeof(int) * height);
 
   size_t true_buffer_size = pitch * height;
   size_t true_n_elements  = true_buffer_size / sizeof(int);
@@ -64,7 +67,7 @@ int main(int argc, char* argv[]) {
 
 #ifdef CUSAN_SYNC
   // copy into dummy data buffer causing implicit sync
-  cudaMemcpy2D(dummy_h_data, width * sizeof(int), d_data, pitch, width * sizeof(int), height, cudaMemcpyDeviceToHost);
+  cudaMemset2D(dummy_d_data, dummy_pitch, 0, width, height);
 #endif
 
   // do async non blocking copy which will fail if there was no sync between this and the writing kernel
@@ -81,8 +84,8 @@ int main(int argc, char* argv[]) {
   }
 
   free(h_data);
-  free(dummy_h_data);
   cudaFree(d_data);
+  cudaFree(dummy_d_data);
   cudaStreamDestroy(stream1);
   cudaStreamDestroy(stream2);
   return 0;
