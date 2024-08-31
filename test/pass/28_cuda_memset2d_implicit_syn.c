@@ -6,7 +6,7 @@
 // RUN: %wrapper-cxx %tsan-compile-flags -DCUSAN_SYNC -O2 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
 // RUN: %cusan_ldpreload %tsan-options %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
 
-// UN: %apply %s --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
+// RUN: %apply %s --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 // clang-format on
 
 // CHECK-DAG: data race
@@ -14,6 +14,29 @@
 
 // CHECK-SYNC-NOT: data race
 // CHECK-SYNC-NOT: [Error] sync
+
+// CHECK-LLVM-IR: call void @_cusan_kernel_register
+// CHECK-LLVM-IR: invoke noundef i32 @cudaLaunchKernel
+// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
+// CHECK-LLVM-IR: invoke void @_cusan_create_stream
+// CHECK-LLVM-IR: invoke i32 @cudaStreamCreateWithPriority
+// CHECK-LLVM-IR: invoke void @_cusan_create_stream
+// CHECK-LLVM-IR: invoke i32 @cudaMemset2D
+// CHECK-LLVM-IR: invoke void @_cusan_memset_2d
+// CHECK-LLVM-IR: invoke i32 @cudaDeviceSynchronize
+// CHECK-LLVM-IR: invoke void @_cusan_sync_device
+// CHECK-LLVM-IR: invoke i32 @cudaMemcpy2DAsync
+// CHECK-LLVM-IR: invoke void @_cusan_memcpy_2d_async
+// CHECK-LLVM-IR: invoke i32 @cudaStreamSynchronize
+// CHECK-LLVM-IR: invoke void @_cusan_sync_stream
+// CHECK-LLVM-IR: invoke i32 @cudaFree
+// CHECK-LLVM-IR: invoke void @_cusan_device_free
+// CHECK-LLVM-IR: invoke i32 @cudaFree
+// CHECK-LLVM-IR: invoke void @_cusan_device_free
+// CHECK-LLVM-IR: invoke i32 @cudaStreamDestroy
+// CHECK-LLVM-IR: invoke i32 @cudaStreamDestroy
+// CHECK-LLVM-IR: invoke i32 @cudaMallocPitch
+// CHECK-LLVM-IR: call void @_cusan_device_alloc
 
 #include "../support/gpu_mpi.h"
 
@@ -56,7 +79,7 @@ int main(int argc, char* argv[]) {
   cudaStream_t stream1;
   cudaStreamCreate(&stream1);
   cudaStream_t stream2;
-  cudaStreamCreate(&stream2);
+  cudaStreamCreateWithPriority(&stream2, cudaStreamDefault, -1);
 
   // null out all the data
   cudaMemset2D(d_data, pitch, 0, width, height);

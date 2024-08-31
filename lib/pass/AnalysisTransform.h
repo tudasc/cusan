@@ -559,6 +559,20 @@ class StreamCreateWithFlagsInstrumenter : public SimpleInstrumenter<StreamCreate
   }
 };
 
+class StreamCreateWithPriorityInstrumenter : public SimpleInstrumenter<StreamCreateWithPriorityInstrumenter> {
+ public:
+  StreamCreateWithPriorityInstrumenter(callback::FunctionDecl* decls) {
+    setup("cudaStreamCreateWithPriority", &decls->cusan_stream_create.f);
+  }
+  static llvm::SmallVector<Value*, 1> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+    assert(args.size() == 3);
+    auto* cu_stream_void_ptr_ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
+    auto* flags                  = args[1];
+    return {cu_stream_void_ptr_ptr, flags};
+  }
+};
+
+
 class StreamWaitEventInstrumenter : public SimpleInstrumenter<StreamWaitEventInstrumenter> {
  public:
   StreamWaitEventInstrumenter(callback::FunctionDecl* decls) {
