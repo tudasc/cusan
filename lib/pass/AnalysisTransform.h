@@ -520,9 +520,9 @@ class CudaMallocHost : public SimpleInstrumenter<CudaMallocHost> {
   }
 };
 
-class EventCreateInstrumenter : public SimpleInstrumenter<EventCreateInstrumenter> {
+class CudaEventCreateInstrumenter : public SimpleInstrumenter<CudaEventCreateInstrumenter> {
  public:
-  EventCreateInstrumenter(callback::FunctionDecl* decls) {
+  CudaEventCreateInstrumenter(callback::FunctionDecl* decls) {
     setup("cudaEventCreate", &decls->cusan_event_create.f);
   }
   static llvm::SmallVector<Value*, 1> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
@@ -532,6 +532,21 @@ class EventCreateInstrumenter : public SimpleInstrumenter<EventCreateInstrumente
     return {cu_event_void_ptr_ptr};
   }
 };
+
+class CudaEventCreateWithFlagsInstrumenter : public SimpleInstrumenter<CudaEventCreateWithFlagsInstrumenter> {
+ public:
+  CudaEventCreateWithFlagsInstrumenter(callback::FunctionDecl* decls) {
+    setup("cudaEventCreateWithFlags", &decls->cusan_event_create.f);
+  }
+  static llvm::SmallVector<Value*, 1> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+    //cudaEvent_t* event, unsigned int  flags
+    assert(args.size() == 2);
+    auto* cu_event_void_ptr_ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
+    return {cu_event_void_ptr_ptr};
+  }
+};
+
+
 
 class StreamCreateInstrumenter : public SimpleInstrumenter<StreamCreateInstrumenter> {
  public:

@@ -137,7 +137,8 @@ bool CusanPass::runOnFunc(llvm::Function& function) {
   transform::EventSyncInstrumenter(&cusan_decls_).instrument(function);
   transform::EventRecordInstrumenter(&cusan_decls_).instrument(function);
   transform::EventRecordFlagsInstrumenter(&cusan_decls_).instrument(function);
-  transform::EventCreateInstrumenter(&cusan_decls_).instrument(function);
+  transform::CudaEventCreateInstrumenter(&cusan_decls_).instrument(function);
+  transform::CudaEventCreateWithFlagsInstrumenter(&cusan_decls_).instrument(function);
   transform::StreamCreateInstrumenter(&cusan_decls_).instrument(function);
   transform::CudaMemset2dAsyncInstrumenter(&cusan_decls_).instrument(function);
   transform::CudaMemsetAsyncInstrumenter(&cusan_decls_).instrument(function);
