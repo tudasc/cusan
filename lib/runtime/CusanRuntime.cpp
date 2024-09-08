@@ -126,7 +126,7 @@ class Runtime {
     assert(search_result != streams_.end() && "Tried using stream that wasn't created prior");
     if (curr_fiber_ == search_result->second) {
       LOG_TRACE("[cusan]        syncing all other blocking GPU streams to run after since its default stream")
-      for (auto& [s, sync_var] : streams_) {
+      for (const auto& [s, sync_var] : streams_) {
         if (s.isBlocking && !s.isDefaultStream()) {
           LOG_TRACE("[cusan]        happens before " << s.handle)
           TsanHappensBefore(sync_var);
@@ -173,7 +173,7 @@ class Runtime {
 
   void happens_after_all_streams(bool onlyBlockingStreams = false) {
     LOG_TRACE("[cusan]    happens_after_all_streams but only blocking ones: " << onlyBlockingStreams)
-    for (auto [stream, fiber] : streams_) {
+    for (const auto& [stream, fiber] : streams_) {
       if (!onlyBlockingStreams || stream.isBlocking) {
         LOG_TRACE("[cusan]        happens after " << stream.handle)
         TsanHappensAfter(fiber);
