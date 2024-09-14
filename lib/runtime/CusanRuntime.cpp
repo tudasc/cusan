@@ -355,7 +355,7 @@ void _cusan_kernel_register(void** kernel_args, short* modes, int n, RawStream s
       else if (subsequent_alloc != allocs.begin()) {
         // it is the only one that might include our pointer
         // since all allocations are non overlapping and the start of the allocation needs to be smaller then our ptr
-        const auto& alloc = *(subsequent_alloc--);
+        const auto& alloc = *std::prev(subsequent_alloc);
         assert(alloc.first <= ptr);
         // still gotta verify were inside tho
         if ((const char*)alloc.first + alloc.second.size >= ptr) {
