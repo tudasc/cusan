@@ -84,6 +84,7 @@ class Runtime {
   bool init_ = false;
 
  public:
+  static constexpr Stream kDefaultStream = Stream();
   Recorder stats_recorder;
 
   static Runtime& get() {
@@ -96,7 +97,7 @@ class Runtime {
       run_t.curr_fiber_ = run_t.cpu_fiber_;
 
       // default '0' cuda stream
-      { run_t.register_stream(Stream()); }
+      { run_t.register_stream(kDefaultStream); }
 
       run_t.init_ = true;
     }
@@ -122,7 +123,7 @@ class Runtime {
     // if we where one a default stream we should also post sync
     // meaning that all work submitted after from the cpu should also be run after the default kernels are done
     // TODO: double check with blocking
-    auto search_result = streams_.find(Stream());
+    auto search_result = streams_.find(Runtime::kDefaultStream);
     assert(search_result != streams_.end() && "Tried using stream that wasn't created prior");
     if (curr_fiber_ == search_result->second) {
       LOG_TRACE("[cusan]        syncing all other blocking GPU streams to run after since its default stream")
@@ -142,11 +143,14 @@ class Runtime {
   }
 
   void register_stream(Stream stream) {
-    auto search_result = streams_.find(stream);
+    static uint32_t n_streams = 0;
+    auto search_result        = streams_.find(stream);
     assert(search_result == streams_.end() && "Registered stream twice");
     TsanFiber fiber = TsanCreateFiber(0);
     stats_recorder.inc_TsanCreateFiber();
-    TsanSetFiberName(fiber, "cuda_stream");
+    char name[32];
+    snprintf(name, 32, "cuda_stream %u", n_streams++);
+    TsanSetFiberName(fiber, name);
     streams_.insert({stream, fiber});
   }
 
@@ -298,7 +302,7 @@ void _cusan_kernel_register(void** kernel_args, short* modes, int n, RawStream s
       else if (subsequent_alloc != allocs.begin()) {
         // it is the only one that might include our pointer
         // since all allocations are non overlapping and the start of the allocation needs to be smaller then our ptr
-        const auto& alloc = *(subsequent_alloc--);
+        const auto& alloc = *std::prev(subsequent_alloc);
         assert(alloc.first <= ptr);
         // still gotta verify were inside tho
         if ((const char*)alloc.first + alloc.second.size >= ptr) {
@@ -511,7 +515,7 @@ void _cusan_memset_impl(void* target, size_t count) {
   // memory.
   auto& runtime = Runtime::get();
   runtime.stats_recorder.inc_memset_calls();
-  runtime.switch_to_stream(Stream());
+  runtime.switch_to_stream(Runtime::kDefaultStream);
   LOG_TRACE("[cusan]    " << "Write to " << target << " with size: " << count)
   TsanMemoryWritePC(target, count, __builtin_return_address(0));
   runtime.stats_recorder.inc_TsanMemoryWrite();
@@ -522,7 +526,7 @@ void _cusan_memset_impl(void* target, size_t count) {
   // if we couldn't find alloc info we just assume the worst and don't sync
   if ((alloc_info && (alloc_info->is_pinned || alloc_info->is_managed)) || CUSAN_SYNC_DETAIL_LEVEL == 0) {
     LOG_TRACE("[cusan]    " << "Memset is blocking")
-    runtime.happens_after_stream(Stream());
+    runtime.happens_after_stream(Runtime::kDefaultStream);
   } else {
     LOG_TRACE("[cusan]    " << "Memset is not blocking")
     if (!alloc_info) {
@@ -532,7 +536,7 @@ void _cusan_memset_impl(void* target, size_t count) {
     }
   }
 
-  // r.happens_after_stream(Stream());
+  // r.happens_after_stream(Runtime::default_stream));
 }
 
 void _cusan_memset_2d(void* target, size_t pitch, size_t, size_t height, cusan_MemcpyKind) {
@@ -597,18 +601,18 @@ void _cusan_memcpy_impl(void* target, size_t write_size, const void* from, size_
   if (CUSAN_SYNC_DETAIL_LEVEL == 0) {
     LOG_TRACE("[cusan]   DefaultStream+Blocking")
     // In this mode: Memcpy always blocks, no detailed view w.r.t. memory direction
-    runtime.switch_to_stream(Stream());
+    runtime.switch_to_stream(Runtime::kDefaultStream);
     TsanMemoryReadPC(from, read_size, __builtin_return_address(0));
     runtime.stats_recorder.inc_TsanMemoryRead();
     TsanMemoryWritePC(target, write_size, __builtin_return_address(0));
     runtime.stats_recorder.inc_TsanMemoryWrite();
     runtime.happens_before();
     runtime.switch_to_cpu();
-    runtime.happens_after_stream(Stream());
+    runtime.happens_after_stream(Runtime::kDefaultStream);
   } else if (kind == cusan_MemcpyDeviceToDevice) {
     // 4. For transfers from device memory to device memory, no host-side synchronization is performed.
     LOG_TRACE("[cusan]   DefaultStream")
-    runtime.switch_to_stream(Stream());
+    runtime.switch_to_stream(Runtime::kDefaultStream);
     TsanMemoryReadPC(from, read_size, __builtin_return_address(0));
     runtime.stats_recorder.inc_TsanMemoryRead();
     TsanMemoryWritePC(target, write_size, __builtin_return_address(0));
@@ -618,14 +622,14 @@ void _cusan_memcpy_impl(void* target, size_t write_size, const void* from, size_
     // 3. For transfers from device to either pageable or pinned host memory, the function returns only once the copy
     // has completed.
     LOG_TRACE("[cusan]   DefaultStream+Blocking")
-    runtime.switch_to_stream(Stream());
+    runtime.switch_to_stream(Runtime::kDefaultStream);
     TsanMemoryReadPC(from, read_size, __builtin_return_address(0));
     runtime.stats_recorder.inc_TsanMemoryRead();
     TsanMemoryWritePC(target, write_size, __builtin_return_address(0));
     runtime.stats_recorder.inc_TsanMemoryWrite();
     runtime.happens_before();
     runtime.switch_to_cpu();
-    runtime.happens_after_stream(Stream());
+    runtime.happens_after_stream(Runtime::kDefaultStream);
   } else if (kind == cusan_MemcpyHostToDevice) {
     // 1. For transfers from pageable host memory to device memory, a stream sync is performed before the copy is
     // initiated.
@@ -633,7 +637,7 @@ void _cusan_memcpy_impl(void* target, size_t write_size, const void* from, size_
     auto* alloc_info = runtime.get_allocation_info(from);
     // if we couldn't find alloc info we just assume the worst and don't sync
     if (alloc_info && !alloc_info->is_pinned) {
-      runtime.happens_after_stream(Stream());
+      runtime.happens_after_stream(Runtime::kDefaultStream);
       LOG_TRACE("[cusan]   DefaultStream+Blocking")
     } else {
       LOG_TRACE("[cusan]   DefaultStream")
@@ -642,20 +646,20 @@ void _cusan_memcpy_impl(void* target, size_t write_size, const void* from, size_
     //   device memory
     TsanMemoryReadPC(from, read_size, __builtin_return_address(0));
     runtime.stats_recorder.inc_TsanMemoryRead();
-    runtime.switch_to_stream(Stream());
+    runtime.switch_to_stream(Runtime::kDefaultStream);
     TsanMemoryWritePC(target, write_size, __builtin_return_address(0));
     runtime.stats_recorder.inc_TsanMemoryWrite();
     runtime.happens_before();
     runtime.switch_to_cpu();
-    runtime.happens_after_stream(Stream());
+    runtime.happens_after_stream(Runtime::kDefaultStream);
   } else if (kind == cusan_MemcpyHostToHost) {
     // 5. For transfers from any host memory to any host memory, the function is fully synchronous with respect to the
     // host.
     LOG_TRACE("[cusan]   DefaultStream+Blocking")
-    runtime.switch_to_stream(Stream());
+    runtime.switch_to_stream(Runtime::kDefaultStream);
     runtime.happens_before();
     runtime.switch_to_cpu();
-    runtime.happens_after_stream(Stream());
+    runtime.happens_after_stream(Runtime::kDefaultStream);
     TsanMemoryReadPC(from, read_size, __builtin_return_address(0));
     runtime.stats_recorder.inc_TsanMemoryRead();
     TsanMemoryWritePC(target, write_size, __builtin_return_address(0));
