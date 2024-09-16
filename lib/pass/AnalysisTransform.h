@@ -296,448 +296,56 @@ class SimpleInstrumenter {
   }
 };
 
-class DeviceSyncInstrumenter : public SimpleInstrumenter<DeviceSyncInstrumenter> {
- public:
-  DeviceSyncInstrumenter(callback::FunctionDecl* decls) {
-    setup("cudaDeviceSynchronize", &decls->cusan_sync_device.f);
-  }
-  static llvm::SmallVector<Value*, 4> map_arguments(IRBuilder<>&, llvm::ArrayRef<Value*>) {
-    return {};
-  }
-};
-class StreamSyncInstrumenter : public SimpleInstrumenter<StreamSyncInstrumenter> {
- public:
-  StreamSyncInstrumenter(callback::FunctionDecl* decls) {
-    setup("cudaStreamSynchronize", &decls->cusan_sync_stream.f);
-  }
-  static llvm::SmallVector<Value*, 1> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    assert(args.size() == 1);
-    Value* cu_stream_void_ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    return {cu_stream_void_ptr};
-  }
-};
-class EventSyncInstrumenter : public SimpleInstrumenter<EventSyncInstrumenter> {
- public:
-  EventSyncInstrumenter(callback::FunctionDecl* decls) {
-    setup("cudaEventSynchronize", &decls->cusan_sync_event.f);
-  }
-  static llvm::SmallVector<Value*, 1> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    assert(args.size() == 1);
-    auto* cu_event_void_ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    return {cu_event_void_ptr};
-  }
-};
-class EventRecordInstrumenter : public SimpleInstrumenter<EventRecordInstrumenter> {
- public:
-  EventRecordInstrumenter(callback::FunctionDecl* decls) {
-    setup("cudaEventRecord", &decls->cusan_event_record.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    assert(args.size() == 2);
-    auto* cu_event_void_ptr  = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    auto* cu_stream_void_ptr = irb.CreateBitOrPointerCast(args[1], irb.getInt8PtrTy());
-    return {cu_event_void_ptr, cu_stream_void_ptr};
-  }
-};
-class EventRecordFlagsInstrumenter : public SimpleInstrumenter<EventRecordFlagsInstrumenter> {
- public:
-  EventRecordFlagsInstrumenter(callback::FunctionDecl* decls) {
-    setup("cudaEventRecordWithFlags", &decls->cusan_event_record.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    assert(args.size() == 3);
-    auto* cu_event_void_ptr  = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    auto* cu_stream_void_ptr = irb.CreateBitOrPointerCast(args[1], irb.getInt8PtrTy());
-    return {cu_event_void_ptr, cu_stream_void_ptr};
-  }
-};
+#ifndef BasicInstrumenterDecl
+#define BasicInstrumenterDecl(name)                                                       \
+  class name : public SimpleInstrumenter<name> {                                          \
+   public:                                                                                \
+    name(callback::FunctionDecl* decls);                                                  \
+    static llvm::SmallVector<Value*> map_arguments(IRBuilder<>&, llvm::ArrayRef<Value*>); \
+  };
+#endif
 
-class CudaMemcpyAsyncInstrumenter : public SimpleInstrumenter<CudaMemcpyAsyncInstrumenter> {
- public:
-  CudaMemcpyAsyncInstrumenter(callback::FunctionDecl* decls) {
-    setup("cudaMemcpyAsync", &decls->cusan_memcpy_async.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    // void* dst, const void* src, size_t count, cudaMemcpyKind kind, cudaStream_t stream = 0
-    assert(args.size() == 5);
-    auto* dst_ptr   = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    auto* src_ptr   = irb.CreateBitOrPointerCast(args[1], irb.getInt8PtrTy());
-    auto* count     = args[2];
-    auto* kind      = args[3];
-    auto* cu_stream = irb.CreateBitOrPointerCast(args[4], irb.getInt8PtrTy());
-    return {dst_ptr, src_ptr, count, kind, cu_stream};
-  }
-};
-
-class CudaMemcpyInstrumenter : public SimpleInstrumenter<CudaMemcpyInstrumenter> {
- public:
-  CudaMemcpyInstrumenter(callback::FunctionDecl* decls) {
-    setup("cudaMemcpy", &decls->cusan_memcpy.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    // void* dst, const void* src, size_t count, cudaMemcpyKind kind
-    assert(args.size() == 4);
-    auto* dst_ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    auto* src_ptr = irb.CreateBitOrPointerCast(args[1], irb.getInt8PtrTy());
-    auto* count   = args[2];
-    auto* kind    = args[3];
-    return {dst_ptr, src_ptr, count, kind};
-  }
-};
-
-class CudaMemcpy2DInstrumenter : public SimpleInstrumenter<CudaMemcpy2DInstrumenter> {
- public:
-  CudaMemcpy2DInstrumenter(callback::FunctionDecl* decls) {
-    setup("cudaMemcpy2D", &decls->cusan_memcpy_2d.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    // void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height, cusan_MemcpyKind kind
-    assert(args.size() == 7);
-    auto* dst_ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    auto* dpitch  = args[1];
-    auto* src_ptr = irb.CreateBitOrPointerCast(args[2], irb.getInt8PtrTy());
-    auto* spitch  = args[3];
-    auto* width   = args[4];
-    auto* height  = args[5];
-    auto* kind    = args[6];
-    return {dst_ptr, dpitch, src_ptr, spitch, width, height, kind};
-  }
-};
-
-class CudaMemcpy2DAsyncInstrumenter : public SimpleInstrumenter<CudaMemcpy2DAsyncInstrumenter> {
- public:
-  CudaMemcpy2DAsyncInstrumenter(callback::FunctionDecl* decls) {
-    setup("cudaMemcpy2DAsync", &decls->cusan_memcpy_2d_async.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    // void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height, cusan_MemcpyKind kind,
-    // stream
-    assert(args.size() == 8);
-    auto* dst_ptr   = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    auto* dpitch    = args[1];
-    auto* src_ptr   = irb.CreateBitOrPointerCast(args[2], irb.getInt8PtrTy());
-    auto* spitch    = args[3];
-    auto* width     = args[4];
-    auto* height    = args[5];
-    auto* kind      = args[6];
-    auto* cu_stream = irb.CreateBitOrPointerCast(args[7], irb.getInt8PtrTy());
-    return {dst_ptr, dpitch, src_ptr, spitch, width, height, kind, cu_stream};
-  }
-};
-
-class CudaMemsetAsyncInstrumenter : public SimpleInstrumenter<CudaMemsetAsyncInstrumenter> {
- public:
-  CudaMemsetAsyncInstrumenter(callback::FunctionDecl* decls) {
-    setup("cudaMemsetAsync", &decls->cusan_memset_async.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    //( void* devPtr, int  value, size_t count, cudaStream_t stream = 0 )
-    assert(args.size() == 4);
-    auto* dst_ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    // auto* value     = args[1];
-    auto* count     = args[2];
-    auto* cu_stream = irb.CreateBitOrPointerCast(args[3], irb.getInt8PtrTy());
-    return {dst_ptr, count, cu_stream};
-  }
-};
-class CudaMemsetInstrumenter : public SimpleInstrumenter<CudaMemsetInstrumenter> {
- public:
-  CudaMemsetInstrumenter(callback::FunctionDecl* decls) {
-    setup("cudaMemset", &decls->cusan_memset.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    //( void* devPtr, int  value, size_t count,)
-    assert(args.size() == 3);
-    auto* dst_ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    // auto* value   = args[1];
-    auto* count = args[2];
-    return {dst_ptr, count};
-  }
-};
-
-class CudaMemset2dAsyncInstrumenter : public SimpleInstrumenter<CudaMemset2dAsyncInstrumenter> {
- public:
-  CudaMemset2dAsyncInstrumenter(callback::FunctionDecl* decls) {
-    setup("cudaMemset2DAsync", &decls->cusan_memset_2d_async.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    // void* devPtr, size_t pitch, int  value, size_t width, size_t height, cudaStream_t stream = 0
-    assert(args.size() == 6);
-    auto* dst_ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    auto* pitch   = args[1];
-    // auto* value     = args[2];
-    auto* height    = args[3];
-    auto* width     = args[4];
-    auto* cu_stream = irb.CreateBitOrPointerCast(args[5], irb.getInt8PtrTy());
-    return {dst_ptr, pitch, height, width, cu_stream};
-  }
-};
-class CudaMemset2dInstrumenter : public SimpleInstrumenter<CudaMemset2dInstrumenter> {
- public:
-  CudaMemset2dInstrumenter(callback::FunctionDecl* decls) {
-    setup("cudaMemset2D", &decls->cusan_memset_2d.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    // void* devPtr, size_t pitch, int  value, size_t width, size_t height
-    assert(args.size() == 5);
-    auto* dst_ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    auto* pitch   = args[1];
-    // auto* value   = args[2];
-    auto* height = args[3];
-    auto* width  = args[4];
-    ;
-    return {dst_ptr, pitch, height, width};
-  }
-};
-
-class CudaHostAlloc : public SimpleInstrumenter<CudaHostAlloc> {
- public:
-  CudaHostAlloc(callback::FunctionDecl* decls) {
-    setup("cudaHostAlloc", &decls->cusan_host_alloc.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    //( void** ptr, size_t size, unsigned int flags )
-    assert(args.size() == 3);
-    auto* dst_ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    auto* size    = args[1];
-    auto* flags   = args[2];
-    return {dst_ptr, size, flags};
-  }
-};
-
-class CudaMallocHost : public SimpleInstrumenter<CudaMallocHost> {
- public:
-  CudaMallocHost(callback::FunctionDecl* decls) {
-    setup("cudaMallocHost", &decls->cusan_host_alloc.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    //( void** ptr, size_t size)
-    assert(args.size() == 2);
-    auto* dst_ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    auto* size    = args[1];
-    auto* flags   = llvm::ConstantInt::get(Type::getInt32Ty(irb.getContext()), 0, false);
-    return {dst_ptr, size, flags};
-  }
-};
-
-class CudaEventCreateInstrumenter : public SimpleInstrumenter<CudaEventCreateInstrumenter> {
- public:
-  CudaEventCreateInstrumenter(callback::FunctionDecl* decls) {
-    setup("cudaEventCreate", &decls->cusan_event_create.f);
-  }
-  static llvm::SmallVector<Value*, 1> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    assert(args.size() == 1);
-    // auto* cu_event_void_ptr = irb.CreateLoad(irb.getInt8PtrTy(), args[0], "");
-    auto* cu_event_void_ptr_ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    return {cu_event_void_ptr_ptr};
-  }
-};
-
-class CudaEventCreateWithFlagsInstrumenter : public SimpleInstrumenter<CudaEventCreateWithFlagsInstrumenter> {
- public:
-  CudaEventCreateWithFlagsInstrumenter(callback::FunctionDecl* decls) {
-    setup("cudaEventCreateWithFlags", &decls->cusan_event_create.f);
-  }
-  static llvm::SmallVector<Value*, 1> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    //cudaEvent_t* event, unsigned int  flags
-    assert(args.size() == 2);
-    auto* cu_event_void_ptr_ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    return {cu_event_void_ptr_ptr};
-  }
-};
-
-
-
-class StreamCreateInstrumenter : public SimpleInstrumenter<StreamCreateInstrumenter> {
- public:
-  StreamCreateInstrumenter(callback::FunctionDecl* decls) {
-    setup("cudaStreamCreate", &decls->cusan_stream_create.f);
-  }
-  static llvm::SmallVector<Value*, 1> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    assert(args.size() == 1);
-    auto* flags                  = llvm::ConstantInt::get(Type::getInt32Ty(irb.getContext()), 0, false);
-    auto* cu_stream_void_ptr_ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    return {cu_stream_void_ptr_ptr, flags};
-  }
-};
-
-class StreamCreateWithFlagsInstrumenter : public SimpleInstrumenter<StreamCreateWithFlagsInstrumenter> {
- public:
-  StreamCreateWithFlagsInstrumenter(callback::FunctionDecl* decls) {
-    setup("cudaStreamCreateWithFlags", &decls->cusan_stream_create.f);
-  }
-  static llvm::SmallVector<Value*, 1> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    assert(args.size() == 2);
-    auto* cu_stream_void_ptr_ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    auto* flags                  = args[1];
-    return {cu_stream_void_ptr_ptr, flags};
-  }
-};
-
-class StreamCreateWithPriorityInstrumenter : public SimpleInstrumenter<StreamCreateWithPriorityInstrumenter> {
- public:
-  StreamCreateWithPriorityInstrumenter(callback::FunctionDecl* decls) {
-    setup("cudaStreamCreateWithPriority", &decls->cusan_stream_create.f);
-  }
-  static llvm::SmallVector<Value*, 1> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    assert(args.size() == 3);
-    auto* cu_stream_void_ptr_ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    auto* flags                  = args[1];
-    return {cu_stream_void_ptr_ptr, flags};
-  }
-};
-
-
-class StreamWaitEventInstrumenter : public SimpleInstrumenter<StreamWaitEventInstrumenter> {
- public:
-  StreamWaitEventInstrumenter(callback::FunctionDecl* decls) {
-    setup("cudaStreamWaitEvent", &decls->cusan_stream_wait_event.f);
-  }
-  static llvm::SmallVector<Value*, 1> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    assert(args.size() == 3);
-    // auto* cu_stream_void_ptr = irb.CreateLoad(irb.getInt8PtrTy(), args[0], "");
-    auto* cu_stream_void_ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    auto* cu_event_void_ptr  = irb.CreateBitOrPointerCast(args[1], irb.getInt8PtrTy());
-    return {cu_stream_void_ptr, cu_event_void_ptr, args[2]};
-  }
-};
-
-class CudaHostRegister : public SimpleInstrumenter<CudaHostRegister> {
- public:
-  CudaHostRegister(callback::FunctionDecl* decls) {
-    setup("cudaHostRegister", &decls->cusan_host_register.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    //( void* ptr)
-    assert(args.size() == 3);
-    auto* ptr   = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    auto* size  = args[1];
-    auto* flags = args[2];
-    return {ptr, size, flags};
-  }
-};
-
-class CudaHostUnregister : public SimpleInstrumenter<CudaHostUnregister> {
- public:
-  CudaHostUnregister(callback::FunctionDecl* decls) {
-    setup("cudaHostUnregister", &decls->cusan_host_unregister.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    //( void* ptr)
-    assert(args.size() == 1);
-    auto* ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    return {ptr};
-  }
-};
-
-class CudaHostFree : public SimpleInstrumenter<CudaHostFree> {
- public:
-  CudaHostFree(callback::FunctionDecl* decls) {
-    setup("cudaFreeHost", &decls->cusan_host_free.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    //( void* ptr)
-    assert(args.size() == 1);
-    auto* ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    return {ptr};
-  }
-};
-
-class CudaMallocManaged : public SimpleInstrumenter<CudaMallocManaged> {
- public:
-  CudaMallocManaged(callback::FunctionDecl* decls) {
-    setup("cudaMallocManaged", &decls->cusan_managed_alloc.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    //( void* ptr, size_t size, u32 flags)
-    assert(args.size() == 3);
-    auto* ptr   = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    auto* size  = args[1];
-    auto* flags = args[2];
-    return {ptr, size, flags};
-  }
-};
-
-class CudaMalloc : public SimpleInstrumenter<CudaMalloc> {
- public:
-  CudaMalloc(callback::FunctionDecl* decls) {
-    setup("cudaMalloc", &decls->cusan_device_alloc.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    //( void* ptr, size_t size)
-    assert(args.size() == 2);
-    auto* ptr  = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    auto* size = args[1];
-    return {ptr, size};
-  }
-};
-
-class CudaFree : public SimpleInstrumenter<CudaFree> {
- public:
-  CudaFree(callback::FunctionDecl* decls) {
-    setup("cudaFree", &decls->cusan_device_free.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    //( void* ptr)
-    assert(args.size() == 1);
-    auto* ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    return {ptr};
-  }
-};
-
-class CudaMallocPitch : public SimpleInstrumenter<CudaMallocPitch> {
- public:
-  CudaMallocPitch(callback::FunctionDecl* decls) {
-    setup("cudaMallocPitch", &decls->cusan_device_alloc.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    //(void** devPtr, size_t* pitch, size_t width, size_t height )
-    assert(args.size() == 4);
-    auto* ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-
-    //"The function may pad the allocation"
-    //"*pitch by cudaMallocPitch() is the width in bytes of the allocation"
-    auto* pitch = irb.CreateLoad(irb.getIntPtrTy(irb.GetInsertBlock()->getModule()->getDataLayout()), args[1]);
-    // auto* width = args[2];
-    auto* height = args[3];
-
-    auto* real_size = irb.CreateMul(pitch, height);
-    return {ptr, real_size};
-  }
-};
+BasicInstrumenterDecl(DeviceSyncInstrumenter);
+BasicInstrumenterDecl(StreamSyncInstrumenter);
+BasicInstrumenterDecl(EventSyncInstrumenter);
+BasicInstrumenterDecl(EventRecordInstrumenter);
+BasicInstrumenterDecl(EventRecordFlagsInstrumenter);
+BasicInstrumenterDecl(CudaMemcpyAsyncInstrumenter);
+BasicInstrumenterDecl(CudaMemcpyInstrumenter);
+BasicInstrumenterDecl(CudaMemcpy2DInstrumenter);
+BasicInstrumenterDecl(CudaMemcpy2DAsyncInstrumenter);
+BasicInstrumenterDecl(CudaMemsetAsyncInstrumenter);
+BasicInstrumenterDecl(CudaMemsetInstrumenter);
+BasicInstrumenterDecl(CudaMemset2dAsyncInstrumenter);
+BasicInstrumenterDecl(CudaMemset2dInstrumenter);
+BasicInstrumenterDecl(CudaHostAlloc);
+BasicInstrumenterDecl(CudaMallocHost);
+BasicInstrumenterDecl(CudaEventCreateInstrumenter);
+BasicInstrumenterDecl(CudaEventCreateWithFlagsInstrumenter);
+BasicInstrumenterDecl(StreamCreateInstrumenter);
+BasicInstrumenterDecl(StreamCreateWithFlagsInstrumenter);
+BasicInstrumenterDecl(StreamCreateWithPriorityInstrumenter);
+BasicInstrumenterDecl(StreamWaitEventInstrumenter);
+BasicInstrumenterDecl(CudaHostRegister);
+BasicInstrumenterDecl(CudaHostUnregister);
+BasicInstrumenterDecl(CudaHostFree);
+BasicInstrumenterDecl(CudaMallocManaged);
+BasicInstrumenterDecl(CudaMalloc);
+BasicInstrumenterDecl(CudaFree);
+BasicInstrumenterDecl(CudaMallocPitch);
 
 class CudaStreamQuery : public SimpleInstrumenter<CudaStreamQuery> {
  public:
-  CudaStreamQuery(callback::FunctionDecl* decls) {
-    setup("cudaStreamQuery", &decls->cusan_stream_query.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    //( void* stream)
-    assert(args.size() == 1);
-    auto* ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    return {ptr};
-  }
-  static llvm::SmallVector<Value*, 1> map_return_value(IRBuilder<>& irb, Value* result) {
-    (void)irb;
-    return {result};
-  }
+  CudaStreamQuery(callback::FunctionDecl* decls);
+  static llvm::SmallVector<Value*> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args);
+  static llvm::SmallVector<Value*, 1> map_return_value(IRBuilder<>& irb, Value* result);
 };
 
 class CudaEventQuery : public SimpleInstrumenter<CudaEventQuery> {
  public:
-  CudaEventQuery(callback::FunctionDecl* decls) {
-    setup("cudaEventQuery", &decls->cusan_event_query.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    //( void* event)
-    assert(args.size() == 1);
-    auto* ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8PtrTy());
-    return {ptr};
-  }
-  static llvm::SmallVector<Value*, 1> map_return_value(IRBuilder<>& irb, Value* result) {
-    (void)irb;
-    return {result};
-  }
+  CudaEventQuery(callback::FunctionDecl* decls);
+  static llvm::SmallVector<Value*> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args);
+  static llvm::SmallVector<Value*, 1> map_return_value(IRBuilder<>& irb, Value* result);
 };
 
 }  // namespace transform

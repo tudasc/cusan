@@ -1,5 +1,6 @@
 set(PASS_SOURCES
   CusanPass.cpp
+  AnalysisTransform.cpp
 )
 
 cusan_llvm_module(cusan_TransformPass
