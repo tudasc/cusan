@@ -92,14 +92,17 @@ set(CUSAN_TEST_DEPENDS
   cusan::MPI_Interceptor
   cusan::Runtime
   cusan::Analysis
-  typeart::Runtime
-  typeart::TransformPass
+  
 )
+
+if(CUSAN_TYPEART)
+list(APPEND CUSAN_TEST_DEPENDS typeart::Runtime typeart::TransformPass)
+endif()
 
 set(CUSAN_SUITES
   all
+  runtime
   pass
-  tsan
 )
 
 cusan_add_lit_target(SUITES ${CUSAN_SUITES})
