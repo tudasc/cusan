@@ -22,7 +22,7 @@
 // FLAKYPASS: *
 // ALLOW_RETRIES: 5
 
-#include "../../support/gpu_mpi.h"
+#include "../support/gpu_mpi.h"
 
 int main(int argc, char* argv[]) {
   if (!has_gpu_aware_mpi()) {

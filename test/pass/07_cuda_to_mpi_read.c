@@ -1,28 +1,35 @@
 // clang-format off
-
 // RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 // clang-format on
 
-// CHECK-LLVM-IR: invoke i32 @cudaMemcpy
-// CHECK-LLVM-IR: invoke void @_cusan_memcpy
-// CHECK-LLVM-IR: invoke i32 @cudaFree
-// CHECK-LLVM-IR: invoke void @_cusan_device_free
+// CHECK-LLVM-IR: invoke i32 @cudaDeviceSynchronize
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_device
 
-#include "../../support/gpu_mpi.h"
+// CHECK-LLVM-IR: invoke i32 @cudaDeviceSynchronize
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_device
+// CHECK-LLVM-IR: invoke i32 @cudaMemcpy(i8* {{.*}}[[target:%[0-9a-z]+]], i8* {{.*}}[[from:%[0-9a-z]+]],
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy(i8* {{.*}}[[target]], i8* {{.*}}[[from]],
 
-#include <unistd.h>
+#include "../support/gpu_mpi.h"
 
-__global__ void kernel(int* arr, const int N) {  // CHECK-DAG: [[FILENAME]]:[[@LINE]]
+__global__ void kernel_init(int* arr, const int N) {
+  int tid = threadIdx.x + blockIdx.x * blockDim.x;
+  if (tid < N) {
+    arr[tid] = -(tid + 1);
+  }
+}
+
+__global__ void kernel(int* arr, const int N, int* result) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid < N) {
 #if __CUDA_ARCH__ >= 700
     for (int i = 0; i < tid; i++) {
-      __nanosleep(1000000U);
+      __nanosleep(10000U);
     }
 #else
     printf(">>> __CUDA_ARCH__ !\n");
 #endif
-    arr[tid] = (tid + 1);
+    result[tid] = arr[tid];
   }
 }
 
@@ -51,14 +58,22 @@ int main(int argc, char* argv[]) {
   cudaMalloc(&d_data, size * sizeof(int));
 
   if (world_rank == 0) {
-    kernel<<<blocksPerGrid, threadsPerBlock>>>(d_data, size);
+    kernel_init<<<blocksPerGrid, threadsPerBlock>>>(d_data, size);
+    cudaDeviceSynchronize();
+  }
 
-#ifdef CUSAN_SYNC
-    cudaDeviceSynchronize();  // FIXME: uncomment for correct execution
-#endif
+  MPI_Barrier(MPI_COMM_WORLD);
 
-    MPI_Send(d_data, size, MPI_INT, 1, 0, MPI_COMM_WORLD);  // CHECK-DAG: [[FILENAME]]:[[@LINE]]
+  if (world_rank == 0) {
+    int* d_result;
+    cudaMalloc(&d_result, size * sizeof(int));
 
+    // kernel and Send both only read d_data
+    kernel<<<blocksPerGrid, threadsPerBlock>>>(d_data, size, d_result);
+    MPI_Send(d_data, size, MPI_INT, 1, 0, MPI_COMM_WORLD);
+
+    cudaFree(d_result);
+    cudaDeviceSynchronize();
   } else if (world_rank == 1) {
     MPI_Recv(d_data, size, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
   }
@@ -68,11 +83,10 @@ int main(int argc, char* argv[]) {
     cudaMemcpy(h_data, d_data, size * sizeof(int), cudaMemcpyDeviceToHost);
     for (int i = 0; i < size; i++) {
       const int buf_v = h_data[i];
-      if (buf_v == 0) {
+      if (buf_v >= 0) {
         printf("[Error] sync\n");
         break;
       }
-      //      printf("buf[%d] = %d (r%d)\n", i, buf_v, world_rank);
     }
     free(h_data);
   }

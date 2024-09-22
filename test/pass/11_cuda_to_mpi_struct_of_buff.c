@@ -16,7 +16,7 @@
 // CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamDestroy
 // CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamDestroy
 
-#include "../../support/gpu_mpi.h"
+#include "../support/gpu_mpi.h"
 
 struct BufferStorage {
   int* buff1;

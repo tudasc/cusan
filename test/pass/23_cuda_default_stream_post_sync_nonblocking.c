@@ -3,19 +3,21 @@
 // RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 // clang-format on
 
-// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamCreate
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamCreateWithFlags
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
 // CHECK-LLVM-IR: {{call|invoke}} i32 @cudaMemset
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memset
 // CHECK-LLVM-IR: {{call|invoke}} i32 @cudaDeviceSynchronize
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_device
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamSynchronize
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_stream
 // CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamDestroy
 // CHECK-LLVM-IR: {{call|invoke}} i32 @cudaFree
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_device_free
 // CHECK-LLVM-IR: {{call|invoke}} i32 @cudaFree
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_device_free
 
-#include "../../support/gpu_mpi.h"
+#include "../support/gpu_mpi.h"
 
 #include <unistd.h>
 
@@ -35,8 +37,7 @@ __global__ void write_kernel_delay(int* arr, const int N, int value, const unsig
 
 int main(int argc, char* argv[]) {
   cudaStream_t stream;
-  cudaStreamCreate(&stream);
-
+  cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
   const int size            = 512;
   const int threadsPerBlock = size;
   const int blocksPerGrid   = (size + threadsPerBlock - 1) / threadsPerBlock;
@@ -52,8 +53,9 @@ int main(int argc, char* argv[]) {
   write_kernel_delay<<<blocksPerGrid, threadsPerBlock, 0, 0>>>(managed_data, size, 128, 9999999);
   write_kernel_delay<<<blocksPerGrid, threadsPerBlock, 0, stream>>>(d_data2, size, 0, 1);
 
-#ifdef CUSAN_SYNC
   cudaStreamSynchronize(stream);
+#ifdef CUSAN_SYNC
+  cudaDeviceSynchronize();
 #endif
   for (int i = 0; i < size; i++) {
     if (managed_data[i] == 0) {

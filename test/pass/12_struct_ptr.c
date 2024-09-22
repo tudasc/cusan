@@ -21,7 +21,7 @@
 // CHECK-LLVM-IR: call void @_cusan_device_free({{.*}}[[free_ptr2]])
 
 
-#include "../../support/gpu_mpi.h"
+#include "../support/gpu_mpi.h"
 
 struct BufferStorage{
   int* buff1;

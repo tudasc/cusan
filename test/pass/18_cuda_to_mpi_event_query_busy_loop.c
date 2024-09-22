@@ -4,21 +4,22 @@
 
 // clang-format on
 
+
 // CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
 // CHECK-LLVM-IR: invoke void @_cusan_create_stream
+// CHECK-LLVM-IR: invoke i32 @cudaEventCreate
+// CHECK-LLVM-IR: invoke void @_cusan_create_event
 // CHECK-LLVM-IR: invoke i32 @cudaMemset
 // CHECK-LLVM-IR: invoke void @_cusan_memset
-// CHECK-LLVM-IR: invoke i32 @cudaDeviceSynchronize
-// CHECK-LLVM-IR: invoke void @_cusan_sync_device
-// CHECK-LLVM-IR: invoke i32 @cudaMemcpyAsync
-// CHECK-LLVM-IR: invoke void @_cusan_memcpy_async
-// CHECK-LLVM-IR: invoke i32 @cudaStreamSynchronize
-// CHECK-LLVM-IR: invoke void @_cusan_sync_stream
+// CHECK-LLVM-IR: invoke i32 @cudaEventRecord
+// CHECK-LLVM-IR: invoke void @_cusan_event_record
 // CHECK-LLVM-IR: invoke i32 @cudaFree
 // CHECK-LLVM-IR: invoke void @_cusan_device_free
 // CHECK-LLVM-IR: invoke i32 @cudaStreamDestroy
+// CHECK-LLVM-IR: invoke i32 @cudaEventDestroy
 
-#include "../../support/gpu_mpi.h"
+
+#include "../support/gpu_mpi.h"
 
 #include <cstdio>
 
@@ -41,6 +42,7 @@ int main(int argc, char* argv[]) {
     printf("This example is designed for CUDA-aware MPI. Exiting.\n");
     return 1;
   }
+
   const int size            = 256;
   const int threadsPerBlock = size;
   const int blocksPerGrid   = (size + threadsPerBlock - 1) / threadsPerBlock;
@@ -56,41 +58,35 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  int* data;
-  int* h_data  = (int*)malloc(sizeof(int));
-  int* h_data2 = (int*)malloc(sizeof(int));
-  int* h_data3 = (int*)malloc(size * sizeof(int));
+  int* managed_data;
+  cudaMallocManaged(&managed_data, size * sizeof(int));
   cudaStream_t stream1;
   cudaStreamCreate(&stream1);
-
-  cudaMalloc(&data, size * sizeof(int));
-  cudaMemset(data, 0, size * sizeof(int));
-
-  cudaDeviceSynchronize();
+  cudaEvent_t event1;
+  cudaEventCreate(&event1);
 
   if (world_rank == 0) {
-    write_kernel_delay<<<blocksPerGrid, threadsPerBlock, 0, stream1>>>(data, size, 1316134912);
+    cudaMemset(managed_data, 0, size * sizeof(int));
+    write_kernel_delay<<<blocksPerGrid, threadsPerBlock, 0, stream1>>>(managed_data, size, 1316134912);
+    cudaEventRecord(event1, stream1);
 #ifdef CUSAN_SYNC
-    cudaMemcpy(h_data, h_data2, sizeof(int), cudaMemcpyHostToHost);
+    while (cudaEventQuery(event1) != cudaSuccess) {
+    }
 #endif
-    MPI_Send(data, size, MPI_INT, 1, 0, MPI_COMM_WORLD);
+    MPI_Send(managed_data, size, MPI_INT, 1, 0, MPI_COMM_WORLD);
   } else if (world_rank == 1) {
-    MPI_Recv(data, size, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    cudaMemcpyAsync(h_data3, data, size * sizeof(int), cudaMemcpyDefault, stream1);
-    cudaStreamSynchronize(stream1);
+    MPI_Recv(managed_data, size, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     for (int i = 0; i < size; i++) {
-      if (h_data3[i] == 0) {
-        printf("[Error] sync %i\n", h_data3[i]);
+      if (managed_data[i] == 0) {
+        printf("[Error] sync %i\n", managed_data[i]);
         break;
       }
     }
   }
 
-  free(h_data);
-  free(h_data2);
-  free(h_data3);
-  cudaFree(data);
+  cudaFree(managed_data);
   cudaStreamDestroy(stream1);
+  cudaEventDestroy(event1);
   MPI_Finalize();
   return 0;
 }

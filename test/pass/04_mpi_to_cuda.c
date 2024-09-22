@@ -1,19 +1,33 @@
 // clang-format off
+
 // RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 
 // clang-format on
 
+
+// CHECK-LLVM-IR: invoke i32 @cudaDeviceSynchronize
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_device
 // CHECK-LLVM-IR: invoke i32 @cudaMemcpy(i8* {{.*}}[[target:%[0-9a-z]+]], i8* {{.*}}[[from:%[0-9a-z]+]],
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy(i8* {{.*}}[[target]], i8* {{.*}}[[from]],
 
-#include "../../support/gpu_mpi.h"
+// FLAKYPASS: *
+// ALLOW_RETRIES: 5
+
+#include "../support/gpu_mpi.h"
+
+__global__ void kernel_init(int* arr, const int N) {
+  int tid = threadIdx.x + blockIdx.x * blockDim.x;
+  if (tid < N) {
+    arr[tid] = -(tid + 1);
+  }
+}
 
 __global__ void kernel(int* arr, const int N) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid < N) {
 #if __CUDA_ARCH__ >= 700
     for (int i = 0; i < tid; i++) {
-      __nanosleep(1000000U);
+      __nanosleep(100U);
     }
 #else
     printf(">>> __CUDA_ARCH__ !\n");
@@ -47,21 +61,37 @@ int main(int argc, char* argv[]) {
   cudaMalloc(&d_data, size * sizeof(int));
 
   if (world_rank == 0) {
-    kernel<<<blocksPerGrid, threadsPerBlock>>>(d_data, size);
-#ifdef CUSAN_SYNC
-    cudaDeviceSynchronize();  // FIXME: uncomment for correct execution
-#endif
+    kernel_init<<<blocksPerGrid, threadsPerBlock>>>(d_data, size);
+    cudaDeviceSynchronize();
+  }
+
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  if (world_rank == 0) {
     MPI_Send(d_data, size, MPI_INT, 1, 0, MPI_COMM_WORLD);
   } else if (world_rank == 1) {
-    MPI_Recv(d_data, size, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Request request;
+    // Recv all negative numbers:
+    MPI_Irecv(d_data, size, MPI_INT, 0, 0, MPI_COMM_WORLD, &request);
+#ifdef CUSAN_SYNC
+    MPI_Wait(&request, MPI_STATUS_IGNORE);
+#endif
+    // FIXME: MPI_Wait here to avoid racy d_data access
+    // Set all numbers to positive value:
+    kernel<<<blocksPerGrid, threadsPerBlock>>>(d_data, size);
+#ifndef CUSAN_SYNC
+    MPI_Wait(&request, MPI_STATUS_IGNORE);
+#endif
   }
 
   if (world_rank == 1) {
     int* h_data = (int*)malloc(size * sizeof(int));
+    // cudaDeviceSynchronize();
     cudaMemcpy(h_data, d_data, size * sizeof(int), cudaMemcpyDeviceToHost);
     for (int i = 0; i < size; i++) {
       const int buf_v = h_data[i];
-      if (buf_v == 0) {
+      // Expect: all values should be positive, given the p_1 kernel sets them to tid.
+      if (buf_v < 1) {
         printf("[Error] sync\n");
         break;
       }

@@ -19,7 +19,7 @@
 
 // clang-format on
 
-#include "../../support/gpu_mpi.h"
+#include "../support/gpu_mpi.h"
 
 #include <unistd.h>
 
