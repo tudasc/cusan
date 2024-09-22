@@ -18,7 +18,7 @@
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_device_free
 
 
-#include "../../support/gpu_mpi.h"
+#include "../support/gpu_mpi.h"
 
 #include <unistd.h>
 

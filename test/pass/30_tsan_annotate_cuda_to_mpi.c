@@ -1,20 +1,18 @@
 // clang-format off
 
 // RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
-
 // clang-format on
-
 
 // CHECK-LLVM-IR: invoke i32 @cudaMemcpy
 // CHECK-LLVM-IR: invoke void @_cusan_memcpy
 // CHECK-LLVM-IR: invoke i32 @cudaFree
 // CHECK-LLVM-IR: invoke void @_cusan_device_free
 
-#include "../../support/gpu_mpi.h"
+#include "../support/gpu_mpi.h"
 
 #include <unistd.h>
 
-__global__ void kernel(int* arr, const int N) {
+__global__ void kernel(int* arr, const int N) {  // CHECK-DAG: [[FILENAME]]:[[@LINE]]
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid < N) {
 #if __CUDA_ARCH__ >= 700
@@ -54,10 +52,13 @@ int main(int argc, char* argv[]) {
 
   if (world_rank == 0) {
     kernel<<<blocksPerGrid, threadsPerBlock>>>(d_data, size);
+
 #ifdef CUSAN_SYNC
     cudaDeviceSynchronize();  // FIXME: uncomment for correct execution
 #endif
-    MPI_Send(d_data, size, MPI_INT, 1, 0, MPI_COMM_WORLD);
+
+    MPI_Send(d_data, size, MPI_INT, 1, 0, MPI_COMM_WORLD);  // CHECK-DAG: [[FILENAME]]:[[@LINE]]
+
   } else if (world_rank == 1) {
     MPI_Recv(d_data, size, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
   }

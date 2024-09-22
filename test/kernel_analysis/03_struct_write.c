@@ -20,7 +20,7 @@
 // CHECK-NEXT: subarg: {{.*}}ptr: 0, rw: ReadWrite
 // CHECK-NOT: Handling Arg:
 
-#include "../../support/gpu_mpi.h"
+#include "../support/gpu_mpi.h"
 
 struct BufferStorage {
   int* buff1;

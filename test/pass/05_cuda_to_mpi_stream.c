@@ -10,13 +10,13 @@
 // CHECK-LLVM-IR: invoke i32 @cudaStreamSynchronize
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_stream
 
-#include "../../support/gpu_mpi.h"
+#include "../support/gpu_mpi.h"
 
 __global__ void kernel(int* arr, const int N) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid < N) {
 #if __CUDA_ARCH__ >= 700
-    for (int i = 0; i < tid; i++) {
+    for (int i = 0; i < tid; i++%apply %s -strip-debug) {
       __nanosleep(1000000U);
     }
 #else

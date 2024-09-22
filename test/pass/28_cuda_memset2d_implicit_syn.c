@@ -27,7 +27,7 @@
 // CHECK-LLVM-IR: invoke i32 @cudaMallocPitch
 // CHECK-LLVM-IR: call void @_cusan_device_alloc
 
-#include "../../support/gpu_mpi.h"
+#include "../support/gpu_mpi.h"
 
 #include <assert.h>
 

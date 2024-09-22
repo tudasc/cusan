@@ -14,7 +14,7 @@
 // CHECK-LLVM-IR: invoke i32 @cudaEventRecord
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_event_record
 
-#include "../../support/gpu_mpi.h"
+#include "../support/gpu_mpi.h"
 
 #include <unistd.h>
 

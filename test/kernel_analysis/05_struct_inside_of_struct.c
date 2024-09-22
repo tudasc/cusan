@@ -1,25 +1,28 @@
-// clang-format off
-
-// RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
-// clang-format on
+// RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s
 
 
-// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
-// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
-// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
-// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
+// CHECK-NOT: Handling Arg:
+// CHECK: Handling Arg:
+// CHECK-NEXT: subarg: {{.*}}indices:[], ptr: 1, rw: Read
+// CHECK-NEXT: subarg: {{.*}}indices:[0, 0, -1, ], ptr: 1, rw: Write
+// CHECK-NEXT: Handling Arg:
+// CHECK-NEXT: subarg: {{.*}}ptr: 0, rw: ReadWrite
 
-// CHECK-LLVM-IR: invoke i32 @cudaDeviceSynchronize
-// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_device
+// CHECK: Handling Arg:
+// CHECK-NEXT: subarg: {{.*}}indices:[], ptr: 1, rw: Read
+// CHECK-NEXT: subarg: {{.*}}indices:[1, 0, -1, ], ptr: 1, rw: Write
+// CHECK-NEXT: Handling Arg:
+// CHECK-NEXT: subarg: {{.*}}ptr: 0, rw: ReadWrite
 
-// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamDestroy
-// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamDestroy
-// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaFree
-// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_device_free
-// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaFree
-// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_device_free
+// CHECK: Handling Arg:
+// CHECK-NEXT: subarg: {{.*}}indices:[], ptr: 1, rw: Read
+// CHECK-NEXT: subarg: {{.*}}indices:[1, 0, -1, ], ptr: 1, rw: Write
+// CHECK-NEXT: Handling Arg:
+// CHECK-NEXT: subarg: {{.*}}ptr: 0, rw: ReadWrite
 
-#include "../../support/gpu_mpi.h"
+// CHECK-NOT: Handling Arg:
+
+#include "../support/gpu_mpi.h"
 
 struct BufferStorage2 {
   int* buff;
