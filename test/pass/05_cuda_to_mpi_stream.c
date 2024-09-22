@@ -16,7 +16,7 @@ __global__ void kernel(int* arr, const int N) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid < N) {
 #if __CUDA_ARCH__ >= 700
-    for (int i = 0; i < tid; i++ % apply % s - strip - debug) {
+    for (int i = 0; i < tid; i++) {
       __nanosleep(1000000U);
     }
 #else
