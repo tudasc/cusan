@@ -8,7 +8,7 @@
 #define CUSAN_UTIL_H
 
 #include "llvm/Demangle/Demangle.h"
-
+#include "llvm/Config/llvm-config.h"
 #include <string>
 
 namespace cusan::util {
@@ -27,7 +27,11 @@ bool starts_with_any_of(const std::string& lhs, Strings&&... rhs) {
 template <typename String>
 inline std::string demangle(String&& s) {
   std::string name = std::string{s};
-  auto demangle    = llvm::itaniumDemangle(name.data(), nullptr, nullptr, nullptr);
+#if LLVM_VERSION_MAJOR >= 15
+  auto demangle    = llvm::itaniumDemangle(name.data(), false);
+#else
+  auto *demangle    = llvm::itaniumDemangle(name.data(), nullptr, nullptr, nullptr);
+#endif
   if (demangle && !std::string(demangle).empty()) {
     return {demangle};
   }

@@ -53,7 +53,7 @@ template <>
 struct llvm::yaml::MappingTraits<cusan::FunctionArg> {
   static void mapping(IO& io, cusan::FunctionArg& info) {
     if (!io.outputting()) {
-      info.value = llvm::None;
+      info.value = std::nullopt;
     }
     io.mapRequired("position", info.arg_pos);
     io.mapRequired("pointer", info.is_pointer);
@@ -67,7 +67,7 @@ template <>
 struct llvm::yaml::MappingTraits<cusan::FunctionSubArg> {
   static void mapping(IO& io, cusan::FunctionSubArg& info) {
     if (!io.outputting()) {
-      info.value = llvm::None;
+      info.value = std::nullopt;
     }
     io.mapRequired("indices", info.indices);
     io.mapRequired("access", info.state);
@@ -81,7 +81,7 @@ template <>
 struct llvm::yaml::MappingTraits<cusan::KernelModel> {
   static void mapping(IO& io, cusan::KernelModel& info) {
     if (!io.outputting()) {
-      info.kernel = llvm::None;
+      info.kernel = std::nullopt;
     }
     io.mapRequired("name", info.kernel_name);
     io.mapRequired("args", info.args);

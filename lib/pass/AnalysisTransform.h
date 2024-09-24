@@ -19,6 +19,14 @@
 using namespace llvm;
 namespace cusan {
 
+inline auto get_void_ptr_type(IRBuilder<>& irb) {
+#if LLVM_VERSION_MAJOR >= 15
+  return irb.getPtrTy();
+#else
+  return irb.getInt8PtrTy();
+#endif
+}
+
 namespace analysis {
 
 using KernelArgInfo = cusan::FunctionArg;
@@ -26,7 +34,7 @@ using KernelArgInfo = cusan::FunctionArg;
 struct CudaKernelInvokeCollector {
   KernelModel& model;
   struct KernelInvokeData {
-    llvm::SmallVector<KernelArgInfo, 4> args{};
+    llvm::SmallVector<KernelArgInfo, 4> args;
     llvm::Value* void_arg_array{nullptr};
     llvm::Value* cu_stream{nullptr};
   };
@@ -35,7 +43,7 @@ struct CudaKernelInvokeCollector {
   CudaKernelInvokeCollector(KernelModel& current_stub_model) : model(current_stub_model) {
   }
 
-  llvm::Optional<KernelInvokeData> match(llvm::CallBase& cb, Function& callee) const {
+  std::optional<KernelInvokeData> match(llvm::CallBase& cb, Function& callee) const {
     if (callee.getName() == "cudaLaunchKernel") {
       errs() << "Func:" << callee.getFunction() << "\n";
       auto* cu_stream_handle      = std::prev(cb.arg_end())->get();
@@ -45,7 +53,7 @@ struct CudaKernelInvokeCollector {
 
       return KernelInvokeData{kernel_args, void_kernel_arg_array, cu_stream_handle};
     }
-    return llvm::NoneType();
+    return std::nullopt;
   }
 
   llvm::SmallVector<KernelArgInfo, 4> extract_kernel_args_for(llvm::Value* void_kernel_arg_array) const {
@@ -119,7 +127,7 @@ struct KernelInvokeTransformer {
   static llvm::Value* get_cu_stream_ptr(const analysis::CudaKernelInvokeCollector::Data& data, IRBuilder<>& irb) {
     auto* cu_stream = data.cu_stream;
     assert(cu_stream != nullptr && "Require cuda stream!");
-    auto* cu_stream_void_ptr = irb.CreateBitOrPointerCast(cu_stream, irb.getInt8PtrTy());
+    auto* cu_stream_void_ptr = irb.CreateBitOrPointerCast(cu_stream, get_void_ptr_type(irb));
     return cu_stream_void_ptr;
   }
 
@@ -142,8 +150,8 @@ struct KernelInvokeTransformer {
 
     auto* i16_ty      = Type::getInt16Ty(irb.getContext());
     auto* i32_ty      = Type::getInt32Ty(irb.getContext());
-    auto* void_ptr_ty = Type::getInt8PtrTy(irb.getContext());
-    // auto* void_ptr_ptr_ty = Type::getInt8PtrTy(irb.getContext())->getPointerTo();
+    auto* void_ptr_ty = get_void_ptr_type(irb);
+
 
     auto* cu_stream_void_ptr = get_cu_stream_ptr(data, irb);
     auto* arg_size           = irb.getInt32(n_subargs);
@@ -162,9 +170,9 @@ struct KernelInvokeTransformer {
         irb.CreateStore(acc, gep_acc);
         // only if it is a pointer store the actual pointer in the value array
         if (sub_arg.is_pointer) {
-          assert(arg.value.hasValue());
+          assert(arg.value.has_value());
 
-          auto* value_ptr = arg.value.getValue();
+          auto* value_ptr = arg.value.value();
 
           // TODO: parts of a struct might be null if they are only executed conditionally so we should check the parent
           // for null before gep/load
@@ -211,8 +219,8 @@ class CallInstrumenter {
       if (auto* cb = dyn_cast<CallBase>(&I)) {
         if (auto* f = cb->getCalledFunction()) {
           auto t = collector_.match(*cb, *f);
-          if (t.hasValue()) {
-            data_vec_.push_back({t.getValue(), cb});
+          if (t.has_value()) {
+            data_vec_.push_back({t.value(), cb});
           }
         }
       }
