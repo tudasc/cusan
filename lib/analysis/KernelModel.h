@@ -7,7 +7,6 @@
 #ifndef CUSAN_KERNELMODEL_H
 #define CUSAN_KERNELMODEL_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Function.h"
@@ -47,23 +46,23 @@ inline constexpr const char* access_state_string(AccessState state) {
 }
 
 struct FunctionSubArg {
-  llvm::Optional<llvm::Value*> value{nullptr};
+  std::optional<llvm::Value*> value = std::nullopt;
   llvm::SmallVector<int32_t> indices;  // gep and loads needed to get the argument from 'actual' args
   bool is_pointer{false};
   AccessState state{AccessState::kRW};
 };
 
 struct FunctionArg {
-  llvm::Optional<llvm::Value*> value{nullptr};
+  std::optional<llvm::Value*> value = std::nullopt;
   unsigned arg_pos{0};
   bool is_pointer{false};
   llvm::SmallVector<FunctionSubArg> subargs;
 };
 
 struct KernelModel {
-  llvm::Optional<const llvm::Function*> kernel{nullptr};
-  std::string kernel_name{};
-  llvm::SmallVector<FunctionArg, 4> args{};
+  std::optional<const llvm::Function*> kernel = std::nullopt;
+  std::string kernel_name;
+  llvm::SmallVector<FunctionArg, 4> args;
 };
 
 struct ModelHandler {

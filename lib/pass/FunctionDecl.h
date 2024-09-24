@@ -74,101 +74,105 @@ struct FunctionDecl {
         }
       }
     };
+
+
+    auto *void_ptr = Type::getInt8Ty(c)->getPointerTo();
+
     using ArgTypes = decltype(CusanFunction::arg_types);
-    // TODO address space?
-    ArgTypes arg_types_cusan_register = {PointerType::get(Type::getInt8PtrTy(c), 0), Type::getInt16PtrTy(c),
-                                         Type::getInt32Ty(c), Type::getInt8PtrTy(c)};
+
+    ArgTypes arg_types_cusan_register = {PointerType::get(void_ptr, 0), Type::getInt16PtrTy(c),
+                                         Type::getInt32Ty(c), void_ptr};
     make_function(cusan_register_access, arg_types_cusan_register);
 
     ArgTypes arg_types_sync_device = {};
     make_function(cusan_sync_device, arg_types_sync_device);
 
-    ArgTypes arg_types_sync_stream = {Type::getInt8PtrTy(c)};
+    ArgTypes arg_types_sync_stream = {void_ptr};
     make_function(cusan_sync_stream, arg_types_sync_stream);
 
-    ArgTypes arg_types_sync_event = {Type::getInt8PtrTy(c)};
+    ArgTypes arg_types_sync_event = {void_ptr};
     make_function(cusan_sync_event, arg_types_sync_event);
-    ArgTypes arg_types_event_record = {Type::getInt8PtrTy(c), Type::getInt8PtrTy(c)};
+    ArgTypes arg_types_event_record = {void_ptr, void_ptr};
     make_function(cusan_event_record, arg_types_event_record);
 
-    ArgTypes arg_types_event_create = {Type::getInt8PtrTy(c)};
+    ArgTypes arg_types_event_create = {void_ptr};
     make_function(cusan_event_create, arg_types_event_create);
 
-    ArgTypes arg_types_stream_create = {Type::getInt8PtrTy(c), Type::getInt32Ty(c)};
+    ArgTypes arg_types_stream_create = {void_ptr, Type::getInt32Ty(c)};
     make_function(cusan_stream_create, arg_types_stream_create);
 
-    auto size_t_ty = m.getDataLayout().getIntPtrType(c);
+    auto *size_t_ty = m.getDataLayout().getIntPtrType(c);
 
     // void* devPtr, size_t count, RawStream* stream
-    ArgTypes arg_types_memset_async = {Type::getInt8PtrTy(c), size_t_ty, Type::getInt8PtrTy(c)};
+    ArgTypes arg_types_memset_async = {void_ptr, size_t_ty, void_ptr};
     make_function(cusan_memset_async, arg_types_memset_async);
 
     // void* dst, const void* src
-    ArgTypes arg_types_memcpy_async = {Type::getInt8PtrTy(c), Type::getInt8PtrTy(c),
+    ArgTypes arg_types_memcpy_async = {void_ptr, void_ptr,
                                        // size_t count, MemcpyKind kind, RawStream stream
-                                       size_t_ty, Type::getInt32Ty(c), Type::getInt8PtrTy(c)};
+                                       size_t_ty, Type::getInt32Ty(c), void_ptr};
     make_function(cusan_memcpy_async, arg_types_memcpy_async);
 
     // void* devPtr, size_t count
-    ArgTypes arg_types_memset = {Type::getInt8PtrTy(c), size_t_ty};
+    ArgTypes arg_types_memset = {void_ptr, size_t_ty};
     make_function(cusan_memset, arg_types_memset);
 
     // void* dst, const void* src
-    ArgTypes arg_types_memcpy = {Type::getInt8PtrTy(c), Type::getInt8PtrTy(c),
+    ArgTypes arg_types_memcpy = {void_ptr, void_ptr,
                                  // size_t count, MemcpyKind kind
                                  size_t_ty, Type::getInt32Ty(c)};
     make_function(cusan_memcpy, arg_types_memcpy);
 
-    ArgTypes arg_types_stream_wait_event = {Type::getInt8PtrTy(c), Type::getInt8PtrTy(c), Type::getInt32Ty(c)};
+    ArgTypes arg_types_stream_wait_event = {void_ptr, void_ptr, Type::getInt32Ty(c)};
     make_function(cusan_stream_wait_event, arg_types_stream_wait_event);
 
-    ArgTypes arg_types_host_alloc = {Type::getInt8PtrTy(c), size_t_ty, Type::getInt32Ty(c)};
+    ArgTypes arg_types_host_alloc = {void_ptr, size_t_ty, Type::getInt32Ty(c)};
     make_function(cusan_host_alloc, arg_types_host_alloc);
 
-    ArgTypes arg_types_host_register = {Type::getInt8PtrTy(c), size_t_ty, Type::getInt32Ty(c)};
+    ArgTypes arg_types_host_register = {void_ptr, size_t_ty, Type::getInt32Ty(c)};
     make_function(cusan_host_register, arg_types_host_register);
 
-    ArgTypes arg_types_host_unregister = {Type::getInt8PtrTy(c)};
+    ArgTypes arg_types_host_unregister = {void_ptr};
     make_function(cusan_host_unregister, arg_types_host_unregister);
 
-    ArgTypes arg_types_host_free = {Type::getInt8PtrTy(c)};
+    ArgTypes arg_types_host_free = {void_ptr};
     make_function(cusan_host_free, arg_types_host_free);
 
-    ArgTypes arg_types_managed_alloc = {Type::getInt8PtrTy(c), size_t_ty, Type::getInt32Ty(c)};
+    ArgTypes arg_types_managed_alloc = {void_ptr, size_t_ty, Type::getInt32Ty(c)};
     make_function(cusan_managed_alloc, arg_types_managed_alloc);
 
-    ArgTypes arg_device_alloc = {Type::getInt8PtrTy(c), size_t_ty};
+    ArgTypes arg_device_alloc = {void_ptr, size_t_ty};
     make_function(cusan_device_alloc, arg_device_alloc);
 
-    ArgTypes arg_device_free = {Type::getInt8PtrTy(c)};
+    ArgTypes arg_device_free = {void_ptr};
     make_function(cusan_device_free, arg_device_free);
 
     // RawStream stream, u32 return_errType
-    ArgTypes arg_stream_query = {Type::getInt8PtrTy(c), Type::getInt32Ty(c)};
+    ArgTypes arg_stream_query = {void_ptr, Type::getInt32Ty(c)};
     make_function(cusan_stream_query, arg_stream_query);
 
     // Event stream, u32 return_errType
-    ArgTypes arg_event_query = {Type::getInt8PtrTy(c), Type::getInt32Ty(c)};
+    ArgTypes arg_event_query = {void_ptr, Type::getInt32Ty(c)};
     make_function(cusan_event_query, arg_event_query);
 
     // void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height, cusan_MemcpyKind kind
     ArgTypes arg_types_memcpy_2d = {
-        Type::getInt8PtrTy(c), size_t_ty, Type::getInt8PtrTy(c), size_t_ty, size_t_ty, size_t_ty, Type::getInt32Ty(c)};
+        void_ptr, size_t_ty, void_ptr, size_t_ty, size_t_ty, size_t_ty, Type::getInt32Ty(c)};
     make_function(cusan_memcpy_2d, arg_types_memcpy_2d);
 
     // void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height, cusan_MemcpyKind kind
     ArgTypes arg_types_memcpy_2d_async = {
-        Type::getInt8PtrTy(c), size_t_ty, Type::getInt8PtrTy(c), size_t_ty, size_t_ty, size_t_ty, Type::getInt32Ty(c),
-        Type::getInt8PtrTy(c)};
+        void_ptr, size_t_ty, void_ptr, size_t_ty, size_t_ty, size_t_ty, Type::getInt32Ty(c),
+        void_ptr};
     make_function(cusan_memcpy_2d_async, arg_types_memcpy_2d_async);
 
     // void* devPtr, size_t pitch, size_t width, size_t height, cudaStream_t stream = 0
-    ArgTypes arg_types_memset_2d_async = {Type::getInt8PtrTy(c), size_t_ty, size_t_ty, size_t_ty,
-                                          Type::getInt8PtrTy(c)};
+    ArgTypes arg_types_memset_2d_async = {void_ptr, size_t_ty, size_t_ty, size_t_ty,
+                                          void_ptr};
     make_function(cusan_memset_2d_async, arg_types_memset_2d_async);
 
     //  void* devPtr, size_t pitch, size_t width, size_t height
-    ArgTypes arg_types_2d_memset = {Type::getInt8PtrTy(c), size_t_ty, size_t_ty, size_t_ty};
+    ArgTypes arg_types_2d_memset = {void_ptr, size_t_ty, size_t_ty, size_t_ty};
     make_function(cusan_memset_2d, arg_types_2d_memset);
   }
 };

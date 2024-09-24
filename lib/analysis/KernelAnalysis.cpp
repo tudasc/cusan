@@ -223,8 +223,7 @@ void collect_children(FunctionArg& arg, llvm::Value* init_val, llvm::SmallVector
               // arg.subargs.push_back(sub_arg);
               //  this argument should have already been looked at in the current function so if we
               //  check it again we should merge the results to get the correct accessstate
-              auto* res =
-                  llvm::find_if(arg.subargs, [=](auto a) { return a.value.getValueOr(nullptr) == ipo_argument; });
+              auto* res = llvm::find_if(arg.subargs, [=](auto a) { return a.value.value_or(nullptr) == ipo_argument; });
               if (res == arg.subargs.end()) {
                 res->state = mergeAccessState(res->state, state(access_res));
               } else {
@@ -275,8 +274,8 @@ void collect_children(FunctionArg& arg, llvm::Value* init_val, llvm::SmallVector
 
 void attribute_value(FunctionArg& arg) {
   using namespace llvm;
-  assert(arg.value.hasValue());
-  auto* value      = arg.value.getValue();
+  assert(arg.value.has_value());
+  auto* value      = arg.value.value();
   Type* value_type = value->getType();
   if (value_type->isPointerTy()) {
     const auto res2 = determinePointerAccessAttrs(value);
