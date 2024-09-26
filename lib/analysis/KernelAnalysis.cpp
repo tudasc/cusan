@@ -183,11 +183,12 @@ inline AccessState state(const llvm::Attribute::AttrKind mem) {
 
 struct ChildInfo {
   llvm::Value* val;
-  llvm::SmallVector<int32_t> indices;
+  llvm::SmallVector<FunctionSubArg::SubIndex> indices;
 };
 
-void collect_children(FunctionArg& arg, llvm::Value* init_val, llvm::SmallVector<int32_t> initial_index_stack = {},
-                      llvm::SmallSet<llvm::Function*, 8> visited_funcs = {}) {
+void collect_children(FunctionArg& arg, llvm::Value* init_val,
+                      llvm::SmallVector<FunctionSubArg::SubIndex> initial_index_stack = {},
+                      llvm::SmallSet<llvm::Function*, 8> visited_funcs                = {}) {
   using namespace llvm;
   llvm::SmallVector<ChildInfo, 32> work_list;
   work_list.push_back({init_val, std::move(initial_index_stack)});
@@ -237,7 +238,7 @@ void collect_children(FunctionArg& arg, llvm::Value* init_val, llvm::SmallVector
             for (unsigned i = 1; i < gep->getNumIndices(); i++) {
               auto* index = gep_indicies.begin() + i;
               if (auto* index_value = dyn_cast<ConstantInt>(index->get())) {
-                sub_index_stack.push_back((int32_t)index_value->getSExtValue());
+                sub_index_stack.push_back(FunctionSubArg::SubIndex{index_value->getSExtValue()});
                 work_list.push_back({gep, sub_index_stack});
               } else {
                 LOG_WARNING("Failed to determine access pattern for argument '"
@@ -257,7 +258,7 @@ void collect_children(FunctionArg& arg, llvm::Value* init_val, llvm::SmallVector
         if (auto* load = dyn_cast<LoadInst>(value_user)) {
           if (load->getType()->isPointerTy()) {
             auto sub_index_stack = index_stack;
-            sub_index_stack.push_back(-1);
+            sub_index_stack.push_back(FunctionSubArg::SubIndex{});
             work_list.push_back({load, sub_index_stack});
             const auto res = determinePointerAccessAttrs(load);
             const FunctionSubArg sub_arg{load, std::move(sub_index_stack), true, state(res)};

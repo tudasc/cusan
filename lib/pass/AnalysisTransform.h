@@ -89,7 +89,7 @@ struct CudaKernelInvokeCollector {
       // not fake pointer from clang so load it before getting subargs
       for (auto& sub_arg : res.subargs) {
         if (real_ptr) {
-          sub_arg.indices.insert(sub_arg.indices.begin(), -1);
+          sub_arg.indices.insert(sub_arg.indices.begin(), FunctionSubArg::SubIndex{});
         }
         sub_arg.value = val;
       }
@@ -178,10 +178,11 @@ struct KernelInvokeTransformer {
           // for null before gep/load
           for (auto gep_index : sub_arg.indices) {
             auto* subtype = dyn_cast<PointerType>(value_ptr->getType())->getPointerElementType();
-            if (gep_index == -1) {
+            if (gep_index.is_load) {
               value_ptr = irb.CreateLoad(subtype, value_ptr);
             } else {
-              value_ptr = irb.CreateStructGEP(subtype, value_ptr, gep_index);
+              assert(gep_index.index >= 0 && "TODO: need to not use struct gep for negative indicies");
+              value_ptr = irb.CreateStructGEP(subtype, value_ptr, (uint32_t)gep_index.index);
             }
           }
 

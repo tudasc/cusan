@@ -46,8 +46,18 @@ inline constexpr const char* access_state_string(AccessState state) {
 }
 
 struct FunctionSubArg {
+  struct SubIndex {
+    bool is_load;
+    int64_t index;
+
+    explicit SubIndex(int64_t index) : is_load(false), index(index) {
+    }
+    explicit SubIndex() : is_load(true), index(0) {
+    }
+  };
+
   std::optional<llvm::Value*> value = std::nullopt;
-  llvm::SmallVector<int32_t> indices;  // gep and loads needed to get the argument from 'actual' args
+  llvm::SmallVector<SubIndex> indices;  // gep and loads needed to get the argument from 'actual' args
   bool is_pointer{false};
   AccessState state{AccessState::kRW};
 };

@@ -43,6 +43,14 @@ bool ModelHandler::insert(const cusan::KernelModel& model) {
 
   return false;
 }
+
+llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const FunctionSubArg::SubIndex& indx) {
+  if(indx.is_load){
+    return os << "L";
+  }
+  return os << indx.index;
+}
+
 llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const FunctionSubArg& arg) {
   os << "[";
   if (arg.value.has_value()) {
@@ -70,8 +78,8 @@ llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const FunctionArg& arg) {
     os << "<null>";
   }
   os << ", subArgs: [";
-  for (const auto& arg : arg.subargs) {
-    os << arg;
+  for (const auto& sub_arg : arg.subargs) {
+    os << sub_arg;
   }
   os << "]";
   os << ", ptr: " << static_cast<int>(arg.is_pointer) << ", pos: " << arg.arg_pos << "]";
