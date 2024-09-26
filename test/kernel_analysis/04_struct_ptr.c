@@ -3,20 +3,20 @@
 
 // CHECK-NOT: Handling Arg:
 // CHECK: Handling Arg:
-// CHECK-NEXT: subarg: {{.*}}indices:[-1, ], ptr: 1, rw: Read
-// CHECK-NEXT: subarg: {{.*}}indices:[-1, 0, -1, ], ptr: 1, rw: Write
+// CHECK-NEXT: subarg: {{.*}}indices:[L, ], ptr: 1, rw: Read
+// CHECK-NEXT: subarg: {{.*}}indices:[L, 0, L, ], ptr: 1, rw: Write
 // CHECK-NEXT: Handling Arg:
 // CHECK-NEXT: subarg: {{.*}}ptr: 0, rw: ReadWrite
 
 // CHECK: Handling Arg:
-// CHECK-NEXT: subarg: {{.*}}indices:[-1, ], ptr: 1, rw: Read
-// CHECK-NEXT: subarg: {{.*}}indices:[-1, 1, -1, ], ptr: 1, rw: Write
+// CHECK-NEXT: subarg: {{.*}}indices:[L, ], ptr: 1, rw: Read
+// CHECK-NEXT: subarg: {{.*}}indices:[L, 1, L, ], ptr: 1, rw: Write
 // CHECK-NEXT: Handling Arg:
 // CHECK-NEXT: subarg: {{.*}}ptr: 0, rw: ReadWrite
 
 // CHECK: Handling Arg:
-// CHECK-NEXT: subarg: {{.*}}indices:[-1, ], ptr: 1, rw: Read
-// CHECK-NEXT: subarg: {{.*}}indices:[-1, 1, -1, ], ptr: 1, rw: Write
+// CHECK-NEXT: subarg: {{.*}}indices:[L, ], ptr: 1, rw: Read
+// CHECK-NEXT: subarg: {{.*}}indices:[L, 1, L, ], ptr: 1, rw: Write
 // CHECK-NEXT: Handling Arg:
 // CHECK-NEXT: subarg: {{.*}}ptr: 0, rw: ReadWrite
 // CHECK-NOT: Handling Arg:
