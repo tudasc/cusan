@@ -15,6 +15,7 @@
 
 #include <optional>
 #include <string_view>
+#include <utility>
 
 namespace cusan {
 
@@ -48,11 +49,11 @@ inline constexpr const char* access_state_string(AccessState state) {
 struct FunctionSubArg {
   struct SubIndex {
     bool is_load;
-    int64_t index;
+    llvm::SmallVector<int64_t> gep_indicies;
 
-    explicit SubIndex(int64_t index) : is_load(false), index(index) {
+    explicit SubIndex(llvm::SmallVector<int64_t> indicies) : is_load(false), gep_indicies(std::move(indicies)) {
     }
-    explicit SubIndex() : is_load(true), index(0) {
+    explicit SubIndex() : is_load(true), gep_indicies({}) {
     }
   };
 

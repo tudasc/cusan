@@ -80,7 +80,7 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(cusan::FunctionSubArg)
 template <>
 struct llvm::yaml::MappingTraits<cusan::FunctionSubArg::SubIndex> {
   static void mapping(IO& io, cusan::FunctionSubArg::SubIndex& info) {
-    io.mapRequired("index", info.index);
+    io.mapRequired("gep_indicies", info.gep_indicies);
     io.mapRequired("is_load", info.is_load);
   }
 };

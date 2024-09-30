@@ -82,9 +82,7 @@ struct CudaKernelInvokeCollector {
       Value* val = real_args[real_args.size() - 1 - res.arg_pos];
       // because of ABI? clang might convert struct argument to a (byval)pointer
       // but the actual cuda argument is just a value. So we doulbe check that it actually allocates a pointer
-      bool real_ptr =
-          res.is_pointer &&
-          dyn_cast<AllocaInst>(val)->getAllocatedType()->isPointerTy();
+      bool real_ptr = res.is_pointer && dyn_cast<AllocaInst>(val)->getAllocatedType()->isPointerTy();
 
       // not fake pointer from clang so load it before getting subargs
       for (auto& sub_arg : res.subargs) {
@@ -152,7 +150,6 @@ struct KernelInvokeTransformer {
     auto* i32_ty      = Type::getInt32Ty(irb.getContext());
     auto* void_ptr_ty = get_void_ptr_type(irb);
 
-
     auto* cu_stream_void_ptr = get_cu_stream_ptr(data, irb);
     auto* arg_size           = irb.getInt32(n_subargs);
     auto* arg_access_array   = irb.CreateAlloca(i16_ty, arg_size);
@@ -181,8 +178,11 @@ struct KernelInvokeTransformer {
             if (gep_index.is_load) {
               value_ptr = irb.CreateLoad(subtype, value_ptr);
             } else {
-              assert(gep_index.index >= 0 && "TODO: need to not use struct gep for negative indicies");
-              value_ptr = irb.CreateStructGEP(subtype, value_ptr, (uint32_t)gep_index.index);
+              //assert(gep_index.index >= 0 && "TODO: need to not use struct gep for negative indicies");
+              llvm::SmallVector<Value*> values{llvm::map_range(gep_index.gep_indicies, [&irb](auto f){return (Value*)irb.getInt32(f);})};
+                
+              value_ptr = irb.CreateGEP(subtype, value_ptr, values);
+              //value_ptr = irb.CreateStructGEP(subtype, value_ptr, (uint32_t)gep_index.index);
             }
           }
 
