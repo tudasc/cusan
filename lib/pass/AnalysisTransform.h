@@ -69,7 +69,8 @@ struct CudaKernelInvokeCollector {
             if (auto* cast = dyn_cast<BitCastInst>(store->getValueOperand())) {
               real_args.push_back(*cast->operand_values().begin());
             } else {
-              assert(false);
+              real_args.push_back(*store->operand_values().begin());
+              //assert(false);
             }
             index++;
           }
