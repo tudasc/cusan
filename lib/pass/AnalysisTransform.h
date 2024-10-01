@@ -19,14 +19,6 @@
 using namespace llvm;
 namespace cusan {
 
-inline auto get_void_ptr_type(IRBuilder<>& irb) {
-#if LLVM_VERSION_MAJOR >= 15
-  return irb.getPtrTy();
-#else
-  return irb.getInt8PtrTy();
-#endif
-}
-
 namespace analysis {
 
 using KernelArgInfo = cusan::FunctionArg;
