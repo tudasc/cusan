@@ -48,7 +48,6 @@ struct CudaKernelInvokeCollector {
       errs() << "Func:" << callee.getFunction() << "\n";
       auto* cu_stream_handle      = std::prev(cb.arg_end())->get();
       auto* void_kernel_arg_array = std::prev(cb.arg_end(), 3)->get();
-      // auto* cb_parent_function    = cb.getFunction();
       auto kernel_args = extract_kernel_args_for(void_kernel_arg_array);
 
       return KernelInvokeData{kernel_args, void_kernel_arg_array, cu_stream_handle};
@@ -83,7 +82,11 @@ struct CudaKernelInvokeCollector {
       Value* val = real_args[real_args.size() - 1 - res.arg_pos];
       // because of ABI? clang might convert struct argument to a (byval)pointer
       // but the actual cuda argument is just a value. So we doulbe check that it actually allocates a pointer
-      bool real_ptr = res.is_pointer && dyn_cast<AllocaInst>(val)->getAllocatedType()->isPointerTy();
+      bool real_ptr = false;
+      if(auto* as_alloca = dyn_cast<AllocaInst>(val)){
+          real_ptr = res.is_pointer && as_alloca->getAllocatedType()->isPointerTy();
+      }
+
 
       // not fake pointer from clang so load it before getting subargs
       for (auto& sub_arg : res.subargs) {
@@ -171,6 +174,7 @@ struct KernelInvokeTransformer {
           assert(arg.value.has_value());
 
           auto* value_ptr = arg.value.value();
+          //assert(dyn_cast_or_null<AllocaInst>(value_ptr));
 
           // TODO: parts of a struct might be null if they are only executed conditionally so we should check the parent
           // for null before gep/load
