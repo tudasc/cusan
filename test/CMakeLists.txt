@@ -104,6 +104,7 @@ set(CUSAN_SUITES
   runtime
   pass
   kernel_analysis
+  staging
 )
 
 cusan_add_lit_target(SUITES ${CUSAN_SUITES})

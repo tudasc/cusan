@@ -79,6 +79,10 @@ function cusan_global_init_fn() {
   else
     readonly cusan_gpu_mode="" #"--cusan-quiet"
   fi
+
+  readonly cusan_compiler="@CUSAN_COMPILER@"
+  readonly cusan_opt_tool="@CUSAN_OPT@"
+  readonly cusan_llc_tool="@CUSAN_LLC_EXEC@"
 }
 
 function typeart_global_init_fn() {
@@ -97,10 +101,6 @@ function typeart_global_init_fn() {
     local -r typeart_include_dir="-I${typeart_install_dir}/@CMAKE_INSTALL_INCLUDEDIR@/@PROJECT_NAME@"
     local -r typeart_pass="${typeart_lib_dir}/$<TARGET_FILE_NAME:typeart::TransformPass>"
   fi
-
-  readonly typeart_compiler="@TYPEART_COMPILER@"
-  readonly typeart_opt_tool="@TYPEART_OPT@"
-  readonly typeart_llc_tool="@TYPEART_LLC@"
 
   readonly typeart_includes="${typeart_include_dir}"
   # shellcheck disable=SC2089
@@ -436,7 +436,7 @@ function typeart_main_link_fn() {
     typeart_link_objs="${typeart_link_objs} ${typeart_cuda_link_objs}"
   fi
   # shellcheck disable=SC2086 disable=SC2068
-  $typeart_compiler ${cusan_includes} ${typeart_includes} ${typeart_ldflags} ${cusan_ldflags} ${typeart_cuda_ldflags} ${typeart_san_flags} ${typeart_link_more_args} ${typeart_link_objs}
+  $cusan_compiler ${cusan_includes} ${typeart_includes} ${typeart_ldflags} ${cusan_ldflags} ${typeart_cuda_ldflags} ${typeart_san_flags} ${typeart_link_more_args} ${typeart_link_objs}
 }
 
 # shellcheck disable=SC2068
@@ -451,12 +451,12 @@ function typeart_redirect_fn() {
 }
 
 function typeart_opt_fn() {
-  local typeart_command_exe="$typeart_opt_tool"
+  local typeart_command_exe="$cusan_opt_tool"
   typeart_redirect_fn "$@"
 }
 
-function typeart_compiler_fn() {
-  local typeart_command_exe="$typeart_compiler"
+function cusan_compiler_fn() {
+  local typeart_command_exe="$cusan_compiler"
   typeart_redirect_fn "$@"
 }
 
@@ -488,11 +488,11 @@ function typeart_tu_out_fn() {
   fi
 
   if [ "$typeart_emit_llvm" == 1 ] && [ "$typeart_to_asm" == 1 ]; then
-    local typeart_command_exe="${typeart_opt_tool} -S"
+    local typeart_command_exe="${cusan_opt_tool} -S"
   elif [ "$typeart_emit_llvm" == 1 ]; then
-    local typeart_command_exe="${typeart_opt_tool} -f"
+    local typeart_command_exe="${cusan_opt_tool} -f"
   else
-    local typeart_command_exe="${typeart_llc_tool} -x=ir ${llc_flags}"
+    local typeart_command_exe="${cusan_llc_tool} -x=ir ${llc_flags}"
   fi
 
   if [ "${typeart_to_stdout}" == 0 ]; then
@@ -504,12 +504,12 @@ function typeart_tu_out_fn() {
 
 # shellcheck disable=SC2086
 function typeart_compile_cuda_device_fn() {
-  $typeart_compiler ${typeart_wrapper_more_args} -gdwarf-4 ${typeart_includes} ${typeart_to_llvm_flags} \
+  $cusan_compiler ${typeart_wrapper_more_args} -gdwarf-4 ${typeart_includes} ${typeart_to_llvm_flags} \
     -fPIC -x cuda "${typeart_source_file}" --cuda-device-only --cuda-gpu-arch=${typeart_cuda_code_arch} -o - |
     typeart_opt_fn "${out_basename}"_cusan_gpu_mem2reg.ll -mem2reg |
     typeart_opt_fn "${out_basename}"_cusan_gpu.ll ${cusan_plugin} ${cusan_gpu_mode} |
     typeart_opt_fn "${out_basename}"_cusan_gpu_opt.ll ${typeart_optimize} |
-    $typeart_llc_tool -dwarf-directory=0 -x=ir --relocation-model=pic -march=nvptx64 -mcpu=${typeart_cuda_code_arch} -mattr=+ptx64 \
+    $cusan_llc_tool -dwarf-directory=0 -x=ir --relocation-model=pic -march=nvptx64 -mcpu=${typeart_cuda_code_arch} -mattr=+ptx64 \
     -o "${out_basename}".ptx
 
   ptxas -m64 --gpu-name=${typeart_cuda_code_arch} "${out_basename}".ptx -o "${out_basename}".ptx.o
@@ -523,7 +523,7 @@ function typeart_compile_cuda_device_fn() {
 
 function typeart_compile_host_fn() {
   # shellcheck disable=SC2086
-  typeart_compiler_fn "${out_basename}"_base.ll -gdwarf-4 ${typeart_wrapper_more_args} ${typeart_includes} ${cusan_includes} ${typeart_san_flags} \
+  cusan_compiler_fn "${out_basename}"_base.ll -gdwarf-4 ${typeart_wrapper_more_args} ${typeart_includes} ${cusan_includes} ${typeart_san_flags} \
     ${typeart_to_llvm_flags} ${typeart_to_llvm_more_flags} "${typeart_source_file}" -o - |
     typeart_opt_fn "${out_basename}"_heap.ll ${typeart_plugin} ${typeart_heap_mode_args} ${typeart_cmdline_args_heap} |
     typeart_opt_fn "${out_basename}"_cusan_cpu.ll ${cusan_plugin} ${cusan_cpu_mode} |
@@ -569,7 +569,7 @@ function typeart_main_driver_fn() {
   typeart_skip_fn "$@"
   if [ "$?" == 1 ] || [ "$typeart_disabled" == 1 ]; then
     # shellcheck disable=SC2068
-    $typeart_compiler $@
+    $cusan_compiler $@
     return 0
   fi
 

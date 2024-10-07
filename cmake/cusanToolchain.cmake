@@ -28,14 +28,6 @@ string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}"
 find_package(CUDAToolkit REQUIRED)
 find_package(MPI REQUIRED)
 
-FetchContent_Declare(
-  typeart
-  GIT_REPOSITORY https://github.com/tudasc/TypeART.git
-  GIT_TAG v1.9.0b-cuda.1
-  GIT_SHALLOW 1
-)
-FetchContent_MakeAvailable(typeart)
-
 option(CUSAN_TEST_CONFIGURE_IDE "Add targets for tests to help the IDE with completion etc." ON)
 mark_as_advanced(CUSAN_TEST_CONFIGURE_IDE)
 option(CUSAN_CONFIG_DIR_IS_SHARE "Install to \"share/cmake/\" instead of \"lib/cmake/\"" OFF)
@@ -74,7 +66,7 @@ include(modules/cusan-format)
 include(modules/cusan-target-util)
 
 cusan_find_llvm_progs(CUSAN_CLANG_EXEC "clang-${LLVM_VERSION_MAJOR};clang" DEFAULT_EXE "clang")
-cusan_find_llvm_progs(CUSAN_CLANGCXX_EXEC "clang-${LLVM_VERSION_MAJOR};clang++" DEFAULT_EXE "clang++")
+cusan_find_llvm_progs(CUSAN_CLANGCXX_EXEC "clang++-${LLVM_VERSION_MAJOR};clang++" DEFAULT_EXE "clang++")
 cusan_find_llvm_progs(CUSAN_LLC_EXEC "llc-${LLVM_VERSION_MAJOR};llc" DEFAULT_EXE "llc")
 cusan_find_llvm_progs(CUSAN_OPT_EXEC "opt-${LLVM_VERSION_MAJOR};opt" DEFAULT_EXE "opt")
 

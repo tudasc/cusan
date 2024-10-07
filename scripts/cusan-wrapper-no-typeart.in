@@ -1,0 +1,512 @@
+#!/bin/bash
+#
+# Based on:
+# TypeART library
+#
+# Copyright (c) 2017-2022 TypeART Authors
+# Distributed under the BSD 3-Clause license.
+# (See accompanying file LICENSE.txt or copy at
+# https://opensource.org/licenses/BSD-3-Clause)
+#
+# Project home: https://github.com/tudasc/TypeART
+#
+# SPDX-License-Identifier: BSD-3-Clause
+#
+
+function cusan_global_env_var_init_fn() {
+  # shellcheck disable=SC2153
+  case "${CUSAN_WRAPPER_EMIT_IR}" in
+  on | ON | 1 | true | TRUE)
+    cusan_wrapper_emit_ir=1
+    ;;
+  *)
+    cusan_wrapper_emit_ir=0
+    ;;
+  esac
+}
+
+function cusan_is_wrapper_disabled_fn() {
+  case "${CUSAN_WRAPPER}" in
+  off | OFF | 0 | false | FALSE)
+    return 1
+    ;;
+  esac
+  return 0
+}
+
+function cusan_global_init_fn() {
+    local -r cusan_use_rel_path=@CUSAN_RELOCATABLE@
+    if [ "$cusan_use_rel_path" == 0 ]; then
+      local -r cusan_bin_dir="@CUSAN_BINARY_DIR@"
+      local -r cusan_lib_dir="@CUSAN_RT_DIR@"
+      local -r cusan_include_dir="@CUSAN_INCLUDE_DIRS@"
+      local -r cusan_pass="@CUSAN_PASS_DIR@/$<TARGET_FILE_NAME:cusan::TransformPass>"
+    else
+      # shellcheck disable=SC2155
+      local -r cusan_bin_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+      # shellcheck disable=SC2155
+      local -r cusan_install_dir="$(dirname "${cusan_bin_dir}")"
+      local -r cusan_lib_dir="${cusan_install_dir}/@CMAKE_INSTALL_LIBDIR@"
+      local -r cusan_include_dir="-I${cusan_install_dir}/@CMAKE_INSTALL_INCLUDEDIR@/@PROJECT_NAME@"
+      local -r cusan_pass="${cusan_lib_dir}/$<TARGET_FILE_NAME:cusan::TransformPass>"
+    fi
+
+  readonly cusan_ldflags="-L${cusan_lib_dir}/ \
+                   -Wl,-rpath,${cusan_lib_dir}/ \
+                   -l$<TARGET_FILE_BASE_NAME:cusan::Runtime>"
+
+  readonly cusan_includes="${cusan_include_dir}"
+  readonly cusan_plugin="-load "${cusan_pass}" -cusan"
+  readonly cusan_cpu_mode=""
+  if [ "${cusan_wrapper_emit_ir}" == 1 ]; then
+    readonly cusan_gpu_mode=""
+  else
+    readonly cusan_gpu_mode="" #"--cusan-quiet"
+  fi
+
+  readonly cusan_compiler="@CUSAN_COMPILER@"
+  readonly cusan_opt_tool="@CUSAN_OPT@"
+  readonly cusan_llc_tool="@CUSAN_LLC_EXEC@"
+}
+
+function cusan_global_cuda_init_fn() {
+  # TODO: use generator expr. w.r.t. CUDA::cudart
+  readonly cusan_cuda_ldflags="-L@CUDAToolkit_LIBRARY_DIR@/ -lcudart -lcudart_static -lcudadevrt"
+}
+
+function cusan_is_cusan_linking_fn() {
+  local arg=""
+  for arg in "$@"; do
+    case "$arg" in
+    -c | -S | -E | -emit-llvm)
+      return 0
+    ;;
+    esac
+  done
+  return 1
+}
+
+function cusan_has_source_fn() {
+  local arg=""
+  for arg in "$@"; do
+    local extension_of_arg="${arg##*.}"
+    case "$extension_of_arg" in
+    cpp | cxx | cc | c | cu)
+      return 1
+    ;;
+    esac
+  done
+  return 0
+}
+
+function cusan_skip_fn() {
+  # -E inline header; -M list (all) headers; -MM list file deps
+  local arg=""
+  for arg in "$@"; do
+    case "$arg" in
+    -E | -M | -MM)
+      return 1
+    ;;
+    esac
+  done
+  return 0
+}
+
+function cusan_try_extract_source_fn() {
+  # $1 == flag (source file); $2 == shift value
+  local -r extension="${1##*.}"
+  local -r shift_val="$2"
+
+  case "$extension" in
+  cpp | cxx | cc | c | cu)
+    cusan_source_file="$1"
+    cusan_found_src_file=1
+    return "$shift_val"
+    ;;
+  *)
+    return 1
+    ;;
+  esac
+}
+
+function cusan_handle_source_flag_fn() {
+  if [ -n "$2" ]; then
+    cusan_try_extract_source_fn "$2" 2
+  else
+    cusan_try_extract_source_fn "$1" 1
+  fi
+  return $?
+}
+
+function cusan_try_extract_object_fn() {
+  # $1 == flag (obj file); $2 == shift value
+  local -r extension="${1##*.}"
+  local -r shift_val="$2"
+
+  case "$extension" in
+  o)
+    cusan_object_file="$1"
+    cusan_found_obj_file=1
+    return "$shift_val"
+    ;;
+  -)
+    cusan_to_stdout=1
+    return "$shift_val"
+    ;;
+  *)
+    return 1
+    ;;
+  esac
+}
+
+function cusan_handle_object_flag_fn() {
+  if [ -n "$2" ]; then
+    cusan_try_extract_object_fn "$2" 2
+  else
+    cusan_try_extract_object_fn "$1" 1
+  fi
+  return $?
+}
+
+function cusan_handle_binary_fn() {
+  if [ -n "$2" ]; then
+    cusan_exe_file="$2"
+    cusan_found_exe_file=1
+  fi
+  return 2
+}
+
+function cusan_parse_cuda_cmd_line_fn() {
+  cusan_non_cuda_args=""
+  cusan_found_cuda=0
+  cusan_cuda_code_arch=""
+  cusan_cuda_compute_arch=""
+
+  while (("$#")); do
+    case "$1" in
+    *.cu)
+      cusan_found_cuda=1
+      cusan_non_cuda_args="$cusan_non_cuda_args $1"
+      shift 1
+      ;;
+    -x)
+      if [ "$2" == "cuda" ]; then
+        cusan_found_cuda=1
+      else
+        cusan_non_cuda_args="$cusan_non_cuda_args $1 $2"
+      fi
+      shift 2
+      ;;
+    --cuda-gpu-arch=*)
+      cusan_cuda_code_arch="${1##--cuda-gpu-arch=}"
+      cusan_cuda_compute_arch="compute${cusan_cuda_code_arch##sm}"
+      shift 1
+      ;;
+    -code=*)
+      cusan_cuda_code_arch="${1##-code=}"
+      shift 1
+      ;;
+    -arch=*)
+      cusan_cuda_compute_arch="${1##-arch=}"
+      shift 1
+      ;;
+    -gencode)
+      shift 1
+      ;;
+    arch=*)
+      cusan_cuda_compute_arch="${1%%,code=*}"
+      cusan_cuda_compute_arch="${cusan_cuda_compute_arch##arch=}"
+      cusan_cuda_code_arch="${1##*code=}"
+      shift 1
+      ;;
+    *) # preserve other arguments
+      cusan_non_cuda_args="$cusan_non_cuda_args $1"
+      shift
+      ;;
+    esac
+  done
+  # set other positional arguments in their proper place
+  set -- "cusan_non_cuda_args"
+}
+
+# shellcheck disable=SC2034
+function cusan_parse_cmd_line_fn() {
+  cusan_found_src_file=0
+  cusan_found_obj_file=0
+  cusan_found_exe_file=0
+  cusan_found_fpic=0
+  cusan_skip=0
+  cusan_to_asm=0
+  cusan_exe_file=""
+  cusan_source_file=""
+  cusan_object_file=""
+  cusan_asm_file=""
+  cusan_wrapper_more_args=""
+  cusan_optimize=""
+  cusan_emit_llvm=0
+  cusan_to_stdout=0
+
+  while (("$#")); do
+    case "$1" in
+    -O?)
+      cusan_optimize=$1
+      shift 1
+      ;;
+    -MT)
+      if [ -n "$2" ]; then
+        cusan_wrapper_more_args+=" $1 $2"
+        shift 2
+      else
+        cusan_wrapper_more_args+=" $1"
+        shift 1
+      fi
+      ;;
+    -S)
+      cusan_to_asm=1
+      shift 1
+      ;;
+    -c)
+      shift 1
+      ;;
+    *.s | *.bc | *.ll)
+      cusan_asm_file="$1"
+      shift 1
+      ;;
+    *.cpp | *.cxx | *.cc | *.c | *.cu)
+      cusan_handle_source_flag_fn "$1"
+      shift $?
+      ;;
+    -o)
+      # shellcheck disable=SC2154
+      if [ "$cusan_linking" == 1 ]; then
+        cusan_handle_binary_fn "$1" "$2"
+      else
+        cusan_handle_object_flag_fn "$1" "$2"
+      fi
+      shift $?
+      ;;
+    *.o)
+      if [ "$cusan_linking" == 0 ]; then
+        cusan_handle_object_flag_fn "$1"
+        shift $?
+      else
+        # when cusan_linking, we don't care about object files
+        cusan_wrapper_more_args+=" $1"
+        shift 1
+      fi
+      ;;
+    -fPIC)
+      # llc requires special flag
+      cusan_found_fpic=1
+      cusan_wrapper_more_args+=" $1"
+      shift 1
+      ;;
+    -emit-llvm)
+      cusan_emit_llvm=1
+      shift 1
+      ;;
+    *) # preserve other arguments
+      cusan_wrapper_more_args+=" $1"
+      shift 1
+      ;;
+    esac
+  done
+
+  if [ -z "${cusan_optimize}" ]; then
+    cusan_optimize=-O0
+  fi
+}
+
+function cusan_parse_commands_fn() {
+  cusan_parse_cuda_cmd_line_fn "$@"
+  cusan_parse_cmd_line_fn ${cusan_non_cuda_args}
+}
+
+function cusan_parse_link_objects_fn() {
+  cusan_link_more_args=""
+  cusan_link_objs=""
+  cusan_cuda_link_objs=""
+
+  while (("$#")); do
+    case "$1" in
+      *.o)
+      cusan_link_objs="${cusan_link_objs} $1"
+      local object_dlink="${1%.*}_dlink.o"
+      if [ -f "${object_dlink}" ]; then
+        cusan_cuda_link_objs="${cusan_cuda_link_objs} ${object_dlink}"
+      fi
+      shift
+      ;;
+      *)
+      cusan_link_more_args+=" $1"
+      shift
+      ;;
+    esac
+  done
+
+}
+
+function cusan_main_link_fn() {
+  cusan_parse_link_objects_fn "$@"
+  if [ "$cusan_found_cuda" == 1 ]; then
+    cusan_link_objs="${cusan_link_objs} ${cusan_cuda_link_objs}"
+  fi
+  # shellcheck disable=SC2086 disable=SC2068
+  $cusan_compiler ${cusan_includes} ${cusan_includes} ${cusan_ldflags} ${cusan_ldflags} ${cusan_cuda_ldflags} ${cusan_san_flags} ${cusan_link_more_args} ${cusan_link_objs}
+}
+
+# shellcheck disable=SC2068
+function cusan_redirect_fn() {
+  # First argument of $@ must be "redirect file name"
+  # Rest are the std arguments for opt
+  if [ -z ${cusan_wrapper_emit_ir} ] || [ ${cusan_wrapper_emit_ir} -eq 0 ]; then
+    $cusan_command_exe ${@:2}
+  else
+    $cusan_command_exe -S ${@:2} | tee "${@:1:1}"
+  fi
+}
+
+function cusan_opt_fn() {
+  local cusan_command_exe="$cusan_opt_tool"
+  cusan_redirect_fn "$@"
+}
+
+function cusan_compiler_fn() {
+  local cusan_command_exe="$cusan_compiler"
+  cusan_redirect_fn "$@"
+}
+
+# shellcheck disable=SC2120
+function cusan_tu_out_fn() {
+  local out_file="${cusan_object_file}"
+  local llc_flags="--filetype=obj"
+
+  if [ "$cusan_to_asm" == 1 ]; then
+    local llc_flags="--filetype=asm"
+  fi
+
+  if [ -z "${cusan_asm_file}" ]; then
+    if [ "$cusan_emit_llvm" == 1 ] && [ "$cusan_to_asm" == 1 ]; then
+      local cusan_asm_file="${out_basename}".ll
+    elif [ "$cusan_emit_llvm" == 1 ]; then
+      local cusan_asm_file="${out_basename}".bc
+    elif [ "$cusan_to_asm" == 1 ]; then
+      local cusan_asm_file="${out_basename}".s
+    fi
+  fi
+
+  if [ "$cusan_emit_llvm" == 1 ] || [ "$cusan_to_asm" == 1 ]; then
+    local out_file="${cusan_asm_file}"
+  fi
+
+  if [ "$cusan_found_fpic" == 1 ]; then
+    local llc_flags+=" --relocation-model=pic"
+  fi
+
+  if [ "$cusan_emit_llvm" == 1 ] && [ "$cusan_to_asm" == 1 ]; then
+    local cusan_command_exe="${cusan_opt_tool} -S"
+  elif [ "$cusan_emit_llvm" == 1 ]; then
+    local cusan_command_exe="${cusan_opt_tool} -f"
+  else
+    local cusan_command_exe="${cusan_llc_tool} -x=ir ${llc_flags}"
+  fi
+
+  if [ "${cusan_to_stdout}" == 0 ]; then
+    local cusan_command_exe+=" -o ${out_file}"
+  fi
+
+  $cusan_command_exe "$@"
+}
+
+# shellcheck disable=SC2086
+function cusan_compile_cuda_device_fn() {
+  $cusan_compiler ${cusan_wrapper_more_args} -gdwarf-4 ${cusan_includes} ${cusan_to_llvm_flags} \
+    -fPIC -x cuda "${cusan_source_file}" --cuda-device-only --cuda-gpu-arch=${cusan_cuda_code_arch} -o - |
+    cusan_opt_fn "${out_basename}"_cusan_gpu_mem2reg.ll -mem2reg |
+    cusan_opt_fn "${out_basename}"_cusan_gpu.ll ${cusan_plugin} ${cusan_gpu_mode} |
+    cusan_opt_fn "${out_basename}"_cusan_gpu_opt.ll ${cusan_optimize} |
+    $cusan_llc_tool -dwarf-directory=0 -x=ir --relocation-model=pic -march=nvptx64 -mcpu=${cusan_cuda_code_arch} -mattr=+ptx64 \
+    -o "${out_basename}".ptx
+
+  ptxas -m64 --gpu-name=${cusan_cuda_code_arch} "${out_basename}".ptx -o "${out_basename}".ptx.o
+
+  fatbinary --64 --create "${out_basename}".fatbin --image=profile=${cusan_cuda_code_arch},file="${out_basename}".ptx.o \
+    --image=profile=${cusan_cuda_compute_arch},file="${out_basename}".ptx -link
+
+  #nvcc -gencode arch=${cusan_cuda_compute_arch},code=${cusan_cuda_code_arch} ${cusan_cuda_ldflags} \
+  #  -dlink "${out_basename}".fatbin -o "${out_basename}"_dlink.o
+}
+
+function cusan_compile_host_fn() {
+  # shellcheck disable=SC2086
+  cusan_compiler_fn "${out_basename}"_base.ll -gdwarf-4 ${cusan_wrapper_more_args} ${cusan_includes} ${cusan_includes} ${cusan_san_flags} \
+    ${cusan_to_llvm_flags} ${cusan_to_llvm_more_flags} "${cusan_source_file}" -o - |
+    cusan_opt_fn "${out_basename}"_cusan_cpu.ll ${cusan_plugin} ${cusan_cpu_mode} |
+    cusan_opt_fn "${out_basename}"_opt.ll ${cusan_optimize} |
+    cusan_tu_out_fn
+}
+
+function cusan_main_compile_fn() {
+  if [ "${cusan_found_exe_file}" == 0 ]; then
+    local -r out_basename="${cusan_source_file%.*}"
+  else
+    # put temp files like .ptx, .fatbin to the location of the executable
+    local -r out_base_exe="${cusan_exe_file%/*}"
+    local -r out_basename_ext="${cusan_source_file##*/}"
+    local -r out_basename=${out_base_exe}/"${out_basename_ext%.*}"
+  fi
+  if [ -z "${cusan_object_file}" ]; then
+    # if no object file is specified, use filename(cusan_source_file).o
+    cusan_object_file="${out_basename}".o
+  fi
+
+  local -r cusan_is_installed=@CUSAN_RELOCATABLE@
+  if [ $cusan_is_installed == 0 ];then
+    export CUSAN_KERNEL_DATA_FILE="${out_basename}".yaml
+  fi
+
+  if [ "$cusan_found_cuda" == 1 ]; then
+    cusan_compile_cuda_device_fn
+    cusan_to_llvm_more_flags="$cusan_to_llvm_more_flags -fPIC -x cuda --cuda-host-only -Xclang -fcuda-include-gpubinary -Xclang ${out_basename}.fatbin"
+  fi
+
+  cusan_compile_host_fn
+}
+
+function cusan_main_driver_fn() {
+  cusan_global_init_fn
+  cusan_global_cuda_init_fn
+
+  cusan_is_wrapper_disabled_fn
+  readonly cusan_disabled=$?
+  cusan_skip_fn "$@"
+  if [ "$?" == 1 ] || [ "$cusan_disabled" == 1 ]; then
+    # shellcheck disable=SC2068
+    $cusan_compiler $@
+    return 0
+  fi
+
+  cusan_is_cusan_linking_fn "$@"
+  local -r cusan_linking=$?
+  cusan_has_source_fn "$@"
+  local -r with_source=$?
+
+  if [ "$cusan_linking" == 1 ] && [ "$with_source" == 1 ]; then
+    cusan_parse_commands_fn "$@"
+    cusan_main_compile_fn "$@"
+    if [ "$cusan_found_exe_file" == 1 ]; then
+      cusan_wrapper_more_args+=" -o ${cusan_exe_file}"
+    fi
+    cusan_main_link_fn "$cusan_wrapper_more_args" "${cusan_object_file}"
+    if [ -f "${cusan_object_file}" ]; then
+      rm "${cusan_object_file}"
+    fi
+  elif [ "$cusan_linking" == 1 ]; then
+    cusan_main_link_fn "$@"
+  else
+    cusan_parse_commands_fn "$@"
+    cusan_main_compile_fn "$@"
+  fi
+}
+
+cusan_main_driver_fn "$@"
