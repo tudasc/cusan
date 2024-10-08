@@ -86,6 +86,8 @@ function cusan_global_init_fn() {
   if [ "${cusan_wrapper_emit_ir}" == 1 ]; then
     cusan_to_llvm_more_flags="-fno-discard-value-names"
   fi
+
+  typeart_global_init_fn
 }
 
 function typeart_global_init_fn() {
@@ -489,10 +491,14 @@ function cusan_compile_cuda_device_fn() {
   #  -dlink "${out_basename}".fatbin -o "${out_basename}"_dlink.o
 }
 
+function cusan_to_llvm_ir_fn() {
+  cusan_compiler_fn "${out_basename}"_base.ll -gdwarf-4 ${cusan_wrapper_more_args} ${typeart_includes} ${cusan_includes} ${cusan_san_flags} \
+    ${cusan_to_llvm_flags} ${cusan_to_llvm_more_flags} "${cusan_source_file}" -o -
+}
+
 function cusan_compile_host_fn() {
   # shellcheck disable=SC2086
-  cusan_compiler_fn "${out_basename}"_base.ll -gdwarf-4 ${cusan_wrapper_more_args} ${typeart_includes} ${cusan_includes} ${cusan_san_flags} \
-    ${cusan_to_llvm_flags} ${cusan_to_llvm_more_flags} "${cusan_source_file}" -o - |
+  cusan_to_llvm_ir_fn |
     cusan_opt_fn "${out_basename}"_heap.ll ${typeart_plugin} ${typeart_heap_mode_args} ${typeart_cmdline_args_heap} |
     cusan_opt_fn "${out_basename}"_cusan_cpu.ll ${cusan_plugin} ${cusan_cpu_mode} |
     cusan_opt_fn "${out_basename}"_opt.ll ${cusan_optimize} |
@@ -530,7 +536,6 @@ function cusan_main_compile_fn() {
 function cusan_main_driver_fn() {
   cusan_global_init_fn
   cusan_global_cuda_init_fn
-  typeart_global_init_fn
 
   cusan_is_wrapper_disabled_fn
   readonly cusan_disabled=$?

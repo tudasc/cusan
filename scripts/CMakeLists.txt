@@ -4,9 +4,6 @@ function(configure_cusan_script input output)
   )
 
   set(CUSAN_BINARY_DIR ${cusan_BINARY_DIR})
-  
-  
-  set(TYPEART_SAN_FLAGS "")
 
   set(TYPEART_PROJECT_DIR ${typeart_SOURCE_DIR})
   set(TYPEART_BIN_DIR ${typeart_BINARY_DIR})
@@ -14,6 +11,8 @@ function(configure_cusan_script input output)
 
   if(ARG_INSTALL_MODE)
     set(CUSAN_RT_DIR ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})
+    set(CUSAN_INCLUDE_DIRS "-I${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}")
+    set(CUSAN_RELOCATABLE 1)
 
     set(TYPEART_INCLUDE_DIRS
         "-I${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}"
@@ -24,21 +23,21 @@ function(configure_cusan_script input output)
         ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}
     )
     set(TYPEART_BINARY_DIR -I${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR})
-    set(TYPEART_RELOCATABLE 1)
-    set(CUSAN_RELOCATABLE 1)
   else()
+    set(CUSAN_INCLUDE_DIRS "-I${PROJECT_SOURCE_DIR}/lib/runtime")
+    set(CUSAN_RELOCATABLE 0)
+
     set(TYPEART_INCLUDE_DIRS
         "-I${TYPEART_PROJECT_DIR}/lib/typelib -I${TYPEART_PROJECT_DIR}/lib/runtime -I${TYPEART_PROJECT_DIR}/lib/passes/typegen"
     )
-    if(LIBRARY_OUTPUT_PATH)
-      set(CUSAN_RT_DIR ${LIBRARY_OUTPUT_PATH})
-      
-      set(TYPEART_MPI_INTERCEPT_DIR ${LIBRARY_OUTPUT_PATH})
+    if(LIBRARY_OUTPUT_PATH)   
       set(TYPEART_RT_DIR ${LIBRARY_OUTPUT_PATH})
       set(TYPEART_PASS_DIR ${LIBRARY_OUTPUT_PATH})
       set(TYPEART_ANALYSIS_PASS_DIR ${LIBRARY_OUTPUT_PATH})
+
+      set(CUSAN_RT_DIR ${LIBRARY_OUTPUT_PATH})
+      set(CUSAN_PASS_DIR ${LIBRARY_OUTPUT_PATH})
     else()
-      set(TYPEART_MPI_INTERCEPT_DIR ${TYPEART_BIN_DIR}/lib/mpi_interceptor)
       set(TYPEART_RT_DIR ${TYPEART_BIN_DIR}/lib/runtime)
       set(TYPEART_PASS_DIR ${TYPEART_BIN_DIR}/lib/passes)
       set(TYPEART_ANALYSIS_PASS_DIR ${TYPEART_BIN_DIR}/analysis)
@@ -49,13 +48,11 @@ function(configure_cusan_script input output)
 
     if(EXECUTABLE_OUTPUT_PATH)
         set(TYPEART_BINARY_DIR ${EXECUTABLE_OUTPUT_PATH})
+        set(CUSAN_BINARY_DIR ${EXECUTABLE_OUTPUT_PATH})
     else()
         set(TYPEART_BINARY_DIR ${TYPEART_BIN_DIR})
-        set(CUSAN_BINARY_DIR ${CMAKE_BINARY_DIR})
+        set(CUSAN_BINARY_DIR ${CUSAN_BINARY_DIR})
     endif()
-
-    set(TYPEART_RELOCATABLE 0)
-    set(CUSAN_RELOCATABLE 0)
   endif()
 
   if(ARG_COMPILER)
@@ -69,8 +66,10 @@ function(configure_cusan_script input output)
 
   if(ARG_APPLY_MODE)
     set(TYPEART_RUN_SCRIPT 0)
+    set(CUSAN_RUN_SCRIPT 0)
   else()
     set(TYPEART_RUN_SCRIPT 1)
+    set(CUSAN_RUN_SCRIPT 1)
   endif()
 
   if(ARG_WITH_FILTER)
@@ -78,14 +77,6 @@ function(configure_cusan_script input output)
   endif()
 
   set(CUSAN_SAN_FLAG "-fsanitize=thread")
-
-  set(CUSAN_INCLUDE_DIRS "-I${PROJECT_SOURCE_DIR}/lib/runtime")
-
-  if(ARG_APPLY_MODE)
-    set(CUSAN_RUN_SCRIPT 0)
-  else()
-    set(CUSAN_RUN_SCRIPT 1)
-  endif()
 
   cusan_target_generate_file(${input} ${output})
 endfunction()
@@ -154,14 +145,14 @@ function(set_cusan_mpi_compiler)
       if(MPI_C_FOUND)
         set(CUSAN_MPICC
             "env ${env_c}=${CUSAN_CLANG_EXEC} ${MPI_C_COMPILER}"
-            CACHE STRING "TypeART MPICC compiler command for scripts"
+            CACHE STRING "CuSan MPICC compiler command for scripts"
           )
         mark_as_advanced(CUSAN_MPICC)
       endif()
       if(MPI_CXX_FOUND)
         set(CUSAN_MPICXX
             "env ${env_cxx}=${CUSAN_CLANGCXX_EXEC} ${MPI_CXX_COMPILER}"
-            CACHE STRING "TypeART MPICXX compiler command for scripts"
+            CACHE STRING "CuSan MPICXX compiler command for scripts"
         )
         mark_as_advanced(CUSAN_MPICXX)
       endif()
