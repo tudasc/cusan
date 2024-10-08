@@ -10,7 +10,7 @@ Our runtime then passes these information appropriately to [ThreadSanitizer](htt
 Making use of CuSan consists of two phases:
 
 1. Compile your code with Clang/LLVM (version 14) using one the CuSan compiler wrappers, e.g., `cusan-clang++` or `cusan-mpic++`.
-This will (a) analyze and instrument the CUDA API appropriately, such as kernel calls and their particular memory access semantics (r/w), (b) add ThreadSanitizer instrumentation, and (c) finally link our runtime library.
+This will (a) analyze and instrument the CUDA API appropriately, such as kernel calls and their particular memory access semantics (r/w), (b) add ThreadSanitizer instrumentation automatically (`-fsanitize=thread`), and (c) finally link our runtime library.
 2. Execute the target program for the data race analysis. Our runtime internally calls ThreadSanitizer to expose the CUDA synchronization and memory access semantics. 
 
 
@@ -19,9 +19,16 @@ You need to use the MPI correctness checker [MUST](https://hpc.rwth-aachen.de/mu
 These libraries call ThreadSanitizer with the particular access semantics of MPI. 
 Therefore, the combined semantics of CUDA and MPI are properly exposed to ThreadSanitizer to detect data races of data dependent MPI and CUDA calls.
 
+#### Example usage for MPI
+Given the file [03_cuda_to_mpi.c](test/runtime/03_cuda_to_mpi.c), execute the following for CUDA data race detection:
+
+```bash
+$ cusan-mpic++ -O3 03_cuda_to_mpi.c -x cuda -gencode arch=compute_70,code=sm_70 -o cuda_to_mpi.exe
+$ LD_PRELOAD=/path/to/libCusanMPIInterceptor.so mpirun -n 2 ./cuda_to_mpi.exe
+```
 
 #### Example report
-The following is an example report for [03_cuda_to_mpi.c](test/pass/03_cuda_to_mpi.c) of our test suite, where the necessary synchronization is not called:
+The following is an example report for [03_cuda_to_mpi.c](test/runtime/03_cuda_to_mpi.c) of our test suite, where the necessary synchronization is not called:
 ```c
 L.23  __global__ void kernel(int* arr, const int N)
 ...
@@ -55,13 +62,13 @@ ThreadSanitizer: reported 1 warnings
 
 ## Building cusan
 
-cusan requires LLVM version 14 and CMake version >= 3.20. Use CMake presets `develop` or `release`
+cusan is tested with LLVM version 14 and 18, and CMake version >= 3.20. Use CMake presets `develop` or `release`
 to build.
 
 ### Dependencies
-CuSan was tested with:
-- System modules: `1) gcc/11.2.0 2) cuda/11.8 3) openmpi/4.1.6 4) git/2.40.0 5) python/3.10.10 6) clang/14.0.6`
-- External libraries: TypeART (https://github.com/tudasc/TypeART/tree/feat/cuda), FiberPool (optional, default off)
+CuSan was tested on the TUDa Lichtenberg II cluster with:
+- System modules: `1) gcc/11.2.0 2) cuda/11.8 3) openmpi/4.1.6 4) git/2.40.0 5) python/3.10.10 6) clang/14.0.6 or 6) clang/18.1.8`
+- Optional external libraries: [TypeART](https://github.com/tudasc/TypeART/tree/v1.9.0b-cuda.1), FiberPool (both default off)
 - Testing: llvm-lit, FileCheck
 - GPU: Tesla T4 and Tesla V100 (mostly: arch=sm_70)
 
@@ -80,6 +87,7 @@ $> cmake --build build --target install --parallel
 
 | Option                       | Default | Description                                                                                       |
 |------------------------------|:-------:|---------------------------------------------------------------------------------------------------|
+| `CUSAN_TYPEART`              |  `OFF`  | Use TypeART library to track memory allocations.                                      |
 | `CUSAN_FIBERPOOL`            |  `OFF`  | Use external library to efficiently manage fibers creation .                                      |
 | `CUSAN_SOFTCOUNTER`          |  `OFF`  | Runtime stats for calls to ThreadSanitizer and CUDA-callbacks. Only use for stats collection, not race detection.   |
 | `CUSAN_SYNC_DETAIL_LEVEL`    |  `ON`   | Analyze, e.g., memcpy and memcpyasync w.r.t. arguments to determine implicit sync.                |
