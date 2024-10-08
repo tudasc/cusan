@@ -445,10 +445,14 @@ function cusan_compile_cuda_device_fn() {
   #  -dlink "${out_basename}".fatbin -o "${out_basename}"_dlink.o
 }
 
+function cusan_to_llvm_ir_fn() {
+  cusan_compiler_fn "${out_basename}"_base.ll -gdwarf-4 ${cusan_wrapper_more_args} ${typeart_includes} ${cusan_includes} ${cusan_san_flags} \
+    ${cusan_to_llvm_flags} ${cusan_to_llvm_more_flags} "${cusan_source_file}" -o -
+}
+
 function cusan_compile_host_fn() {
   # shellcheck disable=SC2086
-  cusan_compiler_fn "${out_basename}"_base.ll -gdwarf-4 ${cusan_wrapper_more_args} ${cusan_includes} ${cusan_san_flags} \
-    ${cusan_to_llvm_flags} ${cusan_to_llvm_more_flags} "${cusan_source_file}" -o - |
+  cusan_to_llvm_ir_fn |
     cusan_opt_fn "${out_basename}"_cusan_cpu.ll ${cusan_plugin} ${cusan_cpu_mode} |
     cusan_opt_fn "${out_basename}"_opt.ll ${cusan_optimize} |
     cusan_tu_out_fn

@@ -81,31 +81,6 @@ function(configure_cusan_script input output)
   cusan_target_generate_file(${input} ${output})
 endfunction()
 
-function(typeart_find_mpi_vendor_helper symbol ret_value)
-  find_package(MPI)
-
-  if(NOT MPI_FOUND)
-    set(${ret_value} false)
-    return()
-  endif()
-
-  set(MPI_TEST_CODE
-   "#include <mpi.h>
-    int main(void) {
-      #if !defined(${symbol})
-        an_illegal_stmt
-      #endif
-      return 0;
-    }")
-
-  set(CMAKE_REQUIRED_INCLUDES ${MPI_C_INCLUDE_DIRS})
-  set(CMAKE_REQUIRED_FLAGS "${MPI_C_COMPILE_FLAGS}")
-  set(CMAKE_REQUIRED_DEFINITIONS "")
-  set(CMAKE_REQUIRED_LIBRARIES "${MPI_C_LIBRARIES}")
-
-  check_c_source_compiles("${MPI_TEST_CODE}" ${ret_value})
-endfunction()
-
 function(cusan_find_mpi_vendor_helper symbol ret_value)
   find_package(MPI)
 
