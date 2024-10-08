@@ -77,10 +77,12 @@ struct FunctionDecl {
 
 
     auto *void_ptr = Type::getInt8Ty(c)->getPointerTo();
+    auto* int16_ptr = Type::getInt16Ty(c)->getPointerTo();
 
     using ArgTypes = decltype(CusanFunction::arg_types);
 
-    ArgTypes arg_types_cusan_register = {PointerType::get(void_ptr, 0), Type::getInt16PtrTy(c),
+
+    ArgTypes arg_types_cusan_register = {PointerType::get(void_ptr, 0), int16_ptr,
                                          Type::getInt32Ty(c), void_ptr};
     make_function(cusan_register_access, arg_types_cusan_register);
 

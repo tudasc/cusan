@@ -48,7 +48,7 @@ struct CudaKernelInvokeCollector {
       errs() << "Func:" << callee.getFunction() << "\n";
       auto* cu_stream_handle      = std::prev(cb.arg_end())->get();
       auto* void_kernel_arg_array = std::prev(cb.arg_end(), 3)->get();
-      auto kernel_args = extract_kernel_args_for(void_kernel_arg_array);
+      auto kernel_args            = extract_kernel_args_for(void_kernel_arg_array);
 
       return KernelInvokeData{kernel_args, void_kernel_arg_array, cu_stream_handle};
     }
@@ -69,7 +69,8 @@ struct CudaKernelInvokeCollector {
               real_args.push_back(*cast->operand_values().begin());
             } else {
               real_args.push_back(*store->operand_values().begin());
-              //assert(false);
+
+              // assert(false);
             }
             index++;
           }
@@ -83,10 +84,9 @@ struct CudaKernelInvokeCollector {
       // because of ABI? clang might convert struct argument to a (byval)pointer
       // but the actual cuda argument is just a value. So we doulbe check that it actually allocates a pointer
       bool real_ptr = false;
-      if(auto* as_alloca = dyn_cast<AllocaInst>(val)){
-          real_ptr = res.is_pointer && as_alloca->getAllocatedType()->isPointerTy();
+      if (auto* as_alloca = dyn_cast<AllocaInst>(val)) {
+        real_ptr = res.is_pointer && as_alloca->getAllocatedType()->isPointerTy();
       }
-
 
       // not fake pointer from clang so load it before getting subargs
       for (auto& sub_arg : res.subargs) {
@@ -172,22 +172,25 @@ struct KernelInvokeTransformer {
         // only if it is a pointer store the actual pointer in the value array
         if (sub_arg.is_pointer) {
           assert(arg.value.has_value());
-
           auto* value_ptr = arg.value.value();
-          //assert(dyn_cast_or_null<AllocaInst>(value_ptr));
 
-          // TODO: parts of a struct might be null if they are only executed conditionally so we should check the parent
-          // for null before gep/load
-          for (auto gep_index : sub_arg.indices) {
-            auto* subtype = dyn_cast<PointerType>(value_ptr->getType())->getPointerElementType();
-            if (gep_index.is_load) {
+          if (auto* alloca_value = dyn_cast_or_null<AllocaInst>(value_ptr)) {
+            auto* subtype = alloca_value->getAllocatedType();
+
+            if (sub_arg.indices.empty()) {
+            } else if (sub_arg.indices.size() == 1 && sub_arg.indices[0].is_load) {
               value_ptr = irb.CreateLoad(subtype, value_ptr);
-            } else {
-              //assert(gep_index.index >= 0 && "TODO: need to not use struct gep for negative indicies");
-              llvm::SmallVector<Value*> values{llvm::map_range(gep_index.gep_indicies, [&irb](auto f){return (Value*)irb.getInt32(f);})};
-                
+            } else if (sub_arg.indices.size() == 2 && !sub_arg.indices[0].is_load && sub_arg.indices[1].is_load) {
+              llvm::SmallVector<Value*> values{llvm::map_range(
+                  sub_arg.indices[0].gep_indicies, [&irb](auto index) { return (Value*)irb.getInt32(index); })};
               value_ptr = irb.CreateGEP(subtype, value_ptr, values);
-              //value_ptr = irb.CreateStructGEP(subtype, value_ptr, (uint32_t)gep_index.index);
+#if LLVM_VERSION_MAJOR >= 15
+              value_ptr = irb.CreateLoad(void_ptr_ty, value_ptr);
+#else
+              value_ptr = irb.CreateLoad(value_ptr->getType()->getPointerElementType(), value_ptr);
+#endif
+            } else {
+              errs() << "Cannot handle this kind of access " << sub_arg << "\n";
             }
           }
 

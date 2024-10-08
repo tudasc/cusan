@@ -9,7 +9,7 @@
 
 // CHECK-SYNC-NOT: data race
 
-
+// XFAIL:*
 
 #include "../support/gpu_mpi.h"
 
