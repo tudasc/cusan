@@ -69,7 +69,11 @@ function cusan_global_init_fn() {
   readonly cusan_san_flags="@CUSAN_SAN_FLAG@"
 
   readonly cusan_includes="${cusan_include_dir}"
-  readonly cusan_plugin="-load "${cusan_pass}" -cusan"
+  if [ "@CUSAN_NEW_PM_REQUIRED@" == 1 ]; then
+    readonly cusan_plugin="-load-pass-plugin "${cusan_pass}" -passes=cusan"
+  else
+    readonly cusan_plugin="-load "${cusan_pass}" -cusan"
+  fi
   readonly cusan_cpu_mode=""
   if [ "${cusan_wrapper_emit_ir}" == 1 ]; then
     readonly cusan_gpu_mode=""
@@ -361,6 +365,14 @@ function cusan_parse_cmd_line_fn() {
       cusan_emit_llvm=1
       shift 1
       ;;
+    --cusan-kernel-data=*)
+      if [ "@CUSAN_NEW_PM_REQUIRED@" == 1 ]; then
+        export CUSAN_KERNEL_DATA_FILE="${1##--cusan-kernel-data=}"
+      else
+        cusan_wrapper_more_args+=" $1"    
+      fi
+      shift
+    ;;
     *) # preserve other arguments
       cusan_wrapper_more_args+=" $1"
       shift 1

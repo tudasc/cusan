@@ -61,7 +61,11 @@ function(configure_cusan_script input output)
 
   set(CUSAN_OPT "${CUSAN_OPT_EXEC}")
   if(${LLVM_VERSION_MAJOR} VERSION_GREATER_EQUAL "13")
-    set(CUSAN_OPT "${CUSAN_OPT} -enable-new-pm=0")
+    if(CUSAN_TYPEART)
+      set(CUSAN_OPT "${CUSAN_OPT} -enable-new-pm=0")
+    else()
+      set(CUSAN_NEW_PM_REQUIRED 1)
+    endif()
   endif()
 
   if(ARG_APPLY_MODE)

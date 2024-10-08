@@ -101,6 +101,14 @@ function cusan_parse_cmd_line() {
       show_cuda_host_ir=1
       shift
     ;;
+    --cusan-kernel-data=*)
+      if [ "@CUSAN_NEW_PM_REQUIRED@" == 1 ]; then
+        export CUSAN_KERNEL_DATA_FILE="${1##--cusan-kernel-data=}"
+      else
+        more_args="$more_args $1"    
+      fi
+      shift
+    ;;
     *) # preserve other arguments
       more_args="$more_args $1"
       shift
@@ -138,7 +146,13 @@ function cusan_global_init() {
                    -l$<TARGET_FILE_BASE_NAME:cusan::Runtime>"
 
   readonly cusan_includes="${cusan_include_dir}"
-  readonly cusan_plugin="-load "${cusan_pass}" -cusan"
+
+  if [ "@CUSAN_NEW_PM_REQUIRED@" == 1 ]; then
+    readonly cusan_plugin="-load-pass-plugin "${cusan_pass}" -passes=cusan"
+  else
+    readonly cusan_plugin="-load "${cusan_pass}" -cusan"
+  fi
+  
   readonly cusan_cpu_mode=""
   readonly cusan_gpu_mode=""
 }
@@ -175,12 +189,12 @@ function cusan_make_ir() {
 
 function cusan_source_to_llvm() {
   local cuda_add_flag=""
-  if [ $found_cuda == 1 ]; then
+  if [ "$found_cuda" == 1 ]; then
     cuda_add_flag=""
     cuda_add_flag+=" -x cuda"
-    if [ $show_cuda_ir == 1 ]; then
+    if [ "$show_cuda_ir" == 1 ]; then
       cuda_add_flag+=" --cuda-device-only --cuda-gpu-arch=${cuda_code_arch}"
-    elif [ $show_cuda_host_ir == 1 ]; then
+    elif [ "$show_cuda_host_ir" == 1 ]; then
       cuda_add_flag+=" --cuda-host-only"
       # generate kernel data, workaround
       cusan_device_pass no_out
@@ -215,13 +229,13 @@ function cusan_apply_pass_optim() {
 function cusan_compile() {
   local llc_flags="--filetype=obj"
   if [ "$optimize" == "-O0" ]; then
-    if [ $show_cuda_ir == 0 ] && [ $show_cuda_host_ir == 0 ]; then
+    if [ "$show_cuda_ir" == 0 ] && [ $show_cuda_host_ir == 0 ]; then
       cusan_apply_pass | $llc_tool -x=ir ${llc_flags} -o "${object_file}"
     else
       cusan_apply_pass
     fi
   else
-    if [ $show_cuda_ir == 0 ] && [ $show_cuda_host_ir == 0 ]; then
+    if [ "$show_cuda_ir" == 0 ] && [ $show_cuda_host_ir == 0 ]; then
       cusan_apply_pass_optim | $llc_tool -x=ir ${llc_flags} -o "${object_file}"
     else
       cusan_apply_pass_optim
@@ -235,6 +249,7 @@ function parse_commands() {
 }
 
 function cusan_main_in() {
+  set +x
   parse_commands "$@"
   cusan_global_init
   cusan_toolchain_init
