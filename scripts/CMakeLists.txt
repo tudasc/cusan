@@ -217,12 +217,12 @@ configure_cusan_script(
 )
 
 #configure_cusan_script(cusan-tmpl.sh.in run.sh)
-if(CUSAN_TYPEART)
+#if(CUSAN_TYPEART)
   configure_cusan_script(
     cusan-tmpl.sh.in apply.sh
     APPLY_MODE ON
   )
-endif()
+#endif()
 
 configure_cusan_script(${CUSAN_WRAPPER} cusan-clang.sh)
 

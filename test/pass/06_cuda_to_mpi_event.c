@@ -2,12 +2,12 @@
 // RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 // clang-format on
 
-// CHECK-LLVM-IR: invoke i32 @cudaEventCreate
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaEventCreate
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_event
 
-// CHECK-LLVM-IR: invoke i32 @cudaEventRecord
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaEventRecord
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_event_record
-// CHECK-LLVM-IR: invoke i32 @cudaMemcpy(i8* {{.*}}[[target:%[0-9a-z]+]], i8* {{.*}}[[from:%[0-9a-z]+]],
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMemcpy(i8* {{.*}}[[target:%[0-9a-z]+]], i8* {{.*}}[[from:%[0-9a-z]+]],
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy(i8* {{.*}}[[target]], i8* {{.*}}[[from]],
 
 #include "../support/gpu_mpi.h"

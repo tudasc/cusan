@@ -4,18 +4,17 @@
 
 // clang-format on
 
-
-// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
-// CHECK-LLVM-IR: invoke void @_cusan_create_stream
-// CHECK-LLVM-IR: invoke i32 @cudaEventCreate
-// CHECK-LLVM-IR: invoke void @_cusan_create_event
-// CHECK-LLVM-IR: invoke i32 @cudaMemset
-// CHECK-LLVM-IR: invoke void @_cusan_memset
-// CHECK-LLVM-IR: invoke i32 @cudaEventRecord
-// CHECK-LLVM-IR: invoke void @_cusan_event_record
-// CHECK-LLVM-IR: invoke i32 @cudaFree
-// CHECK-LLVM-IR: invoke void @_cusan_device_free
-// CHECK-LLVM-IR: invoke i32 @cudaStreamDestroy
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamCreate
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_create_stream
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaEventCreate
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_create_event
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMemset
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_memset
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaEventRecord
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_event_record
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaFree
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_device_free
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamDestroy
 
 #include <cstdio>
 #include <cuda_runtime.h>

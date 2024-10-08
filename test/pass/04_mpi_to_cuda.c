@@ -4,10 +4,9 @@
 
 // clang-format on
 
-
-// CHECK-LLVM-IR: invoke i32 @cudaDeviceSynchronize
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaDeviceSynchronize
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_device
-// CHECK-LLVM-IR: invoke i32 @cudaMemcpy(i8* {{.*}}[[target:%[0-9a-z]+]], i8* {{.*}}[[from:%[0-9a-z]+]],
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMemcpy(i8* {{.*}}[[target:%[0-9a-z]+]], i8* {{.*}}[[from:%[0-9a-z]+]],
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy(i8* {{.*}}[[target]], i8* {{.*}}[[from]],
 
 // FLAKYPASS: *

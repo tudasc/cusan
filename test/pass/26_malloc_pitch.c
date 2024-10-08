@@ -2,14 +2,12 @@
 // RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 // clang-format on
 
-
-
-// CHECK-LLVM-IR: invoke i32 @cudaMemcpy(i8* {{.*}}[[target:%[0-9a-z]+]], i8* {{.*}}[[from:%[0-9a-z]+]],
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMemcpy(i8* {{.*}}[[target:%[0-9a-z]+]], i8* {{.*}}[[from:%[0-9a-z]+]],
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy(i8* {{.*}}[[target]], i8* {{.*}}[[from]],
 
 #include "../support/gpu_mpi.h"
-#include <assert.h>
 
+#include <assert.h>
 
 __global__ void kernel(int* arr, const int N) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -31,8 +29,7 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-
-  const int width = 4;
+  const int width  = 4;
   const int height = 8;
 
   int* d_data;
@@ -40,10 +37,9 @@ int main(int argc, char* argv[]) {
   cudaMallocPitch(&d_data, &pitch, width * sizeof(int), height);
 
   size_t true_buffer_size = pitch * height;
-  size_t true_n_elements = true_buffer_size / sizeof(int);
-  //printf("%zu %zu %zu\n", true_buffer_size, true_n_elements, pitch);
+  size_t true_n_elements  = true_buffer_size / sizeof(int);
+  // printf("%zu %zu %zu\n", true_buffer_size, true_n_elements, pitch);
   assert(true_buffer_size % sizeof(int) == 0);
-
 
   const int threadsPerBlock = true_n_elements;
   const int blocksPerGrid   = (true_n_elements + threadsPerBlock - 1) / threadsPerBlock;
@@ -58,8 +54,6 @@ int main(int argc, char* argv[]) {
     MPI_Finalize();
     return 1;
   }
-
-
 
   if (world_rank == 0) {
     kernel<<<blocksPerGrid, threadsPerBlock>>>(d_data, true_n_elements);
@@ -76,7 +70,7 @@ int main(int argc, char* argv[]) {
     cudaMemcpy(h_data, d_data, true_buffer_size, cudaMemcpyDeviceToHost);
     for (int i = 0; i < true_n_elements; i++) {
       const int buf_v = h_data[i];
-      //printf("buf[%d] = %d (r%d)\n", i, buf_v, world_rank);
+      // printf("buf[%d] = %d (r%d)\n", i, buf_v, world_rank);
       if (buf_v == 0) {
         printf("[Error] sync\n");
         break;
