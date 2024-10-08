@@ -13,6 +13,14 @@ Making use of CuSan consists of two phases:
 This will (a) analyze and instrument the CUDA API appropriately, such as kernel calls and their particular memory access semantics (r/w), (b) add ThreadSanitizer instrumentation automatically (`-fsanitize=thread`), and (c) finally link our runtime library.
 2. Execute the target program for the data race analysis. Our runtime internally calls ThreadSanitizer to expose the CUDA synchronization and memory access semantics. 
 
+#### Example usage
+Given the file [02_event.c](test/runtime/02_event.c), execute the following for CUDA data race detection:
+
+```bash
+$ cusan-clang -O3 -g 02_event.c -x cuda -gencode arch=compute_70,code=sm_70 -o event.exe
+$ export TSAN_OPTIONS=ignore_noninstrumented_modules=1
+$ ./event.exe
+```
 
 ### Checking CUDA-aware MPI applications
 You need to use the MPI correctness checker [MUST](https://hpc.rwth-aachen.de/must/), or preload our (very) simple MPI interceptor `libCusanMPIInterceptor.so` for CUDA-aware MPI data race detection.
@@ -23,9 +31,12 @@ Therefore, the combined semantics of CUDA and MPI are properly exposed to Thread
 Given the file [03_cuda_to_mpi.c](test/runtime/03_cuda_to_mpi.c), execute the following for CUDA data race detection:
 
 ```bash
-$ cusan-mpic++ -O3 03_cuda_to_mpi.c -x cuda -gencode arch=compute_70,code=sm_70 -o cuda_to_mpi.exe
+$ cusan-mpic++ -O3 -g 03_cuda_to_mpi.c -x cuda -gencode arch=compute_70,code=sm_70 -o cuda_to_mpi.exe
 $ LD_PRELOAD=/path/to/libCusanMPIInterceptor.so mpirun -n 2 ./cuda_to_mpi.exe
 ```
+
+*Note*: For avoiding false positives, ThreadSanitizer suppression files might be needed, see for example [test/runtime/suppressions.txt], or [sanitizer special case list](https://clang.llvm.org/docs/SanitizerSpecialCaseList.html)
+
 
 #### Example report
 The following is an example report for [03_cuda_to_mpi.c](test/runtime/03_cuda_to_mpi.c) of our test suite, where the necessary synchronization is not called:

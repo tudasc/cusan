@@ -1,9 +1,9 @@
 // clang-format off
 
-// RUN: %wrapper-cxx %tsan-compile-flags -O2 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
+// RUN: %wrapper-cxx -O2 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
 // RUN: %cusan_ldpreload %tsan-options %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s
 
-// RUN: %wrapper-cxx %tsan-compile-flags -DCUSAN_SYNC -O2 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
+// RUN: %wrapper-cxx -DCUSAN_SYNC -O2 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
 // RUN: %cusan_ldpreload %tsan-options %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
 // clang-format on
 
@@ -71,7 +71,7 @@ int main(int argc, char* argv[]) {
   cudaStreamSynchronize(stream2);
   for (int i = 0; i < width * height; i++) {
     const int buf_v = h_data[i];
-    //printf("buf[%d] = %d\n", i, buf_v);
+    // printf("buf[%d] = %d\n", i, buf_v);
     if (buf_v == 0) {
       printf("[Error] sync\n");
       break;
