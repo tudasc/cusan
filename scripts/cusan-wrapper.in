@@ -87,7 +87,9 @@ function cusan_global_init_fn() {
     cusan_to_llvm_more_flags="-fno-discard-value-names"
   fi
 
-  typeart_global_init_fn
+  if [ "@CUSAN_WITH_TYPEART@" == 1 ]; then
+    typeart_global_init_fn
+  fi
 }
 
 function typeart_global_init_fn() {
@@ -496,15 +498,26 @@ function cusan_to_llvm_ir_fn() {
     ${cusan_to_llvm_flags} ${cusan_to_llvm_more_flags} "${cusan_source_file}" -o -
 }
 
+function cusan_compile_with_cusan_host_fn() {
+  cusan_opt_fn "${out_basename}"_cusan_cpu.ll ${cusan_plugin} ${cusan_cpu_mode} |
+    cusan_opt_fn "${out_basename}"_opt.ll ${cusan_optimize}
+}
+
 function cusan_compile_host_fn() {
+  cusan_to_llvm_ir_fn |
+    cusan_compile_with_cusan_host_fn |
+    cusan_tu_out_fn
+}
+
+function cusan_compile_host_with_typeart_fn() {
   # shellcheck disable=SC2086
   cusan_to_llvm_ir_fn |
     cusan_opt_fn "${out_basename}"_heap.ll ${typeart_plugin} ${typeart_heap_mode_args} ${typeart_cmdline_args_heap} |
-    cusan_opt_fn "${out_basename}"_cusan_cpu.ll ${cusan_plugin} ${cusan_cpu_mode} |
-    cusan_opt_fn "${out_basename}"_opt.ll ${cusan_optimize} |
+    cusan_compile_with_cusan_host_fn |
     cusan_opt_fn "${out_basename}"_stack.ll ${typeart_plugin} ${typeart_stack_mode_args} ${typeart_cmdline_args_stack} |
     cusan_tu_out_fn
 }
+
 
 function cusan_main_compile_fn() {
   if [ "${cusan_found_exe_file}" == 0 ]; then
@@ -530,7 +543,11 @@ function cusan_main_compile_fn() {
     cusan_to_llvm_more_flags="$cusan_to_llvm_more_flags -fPIC -x cuda --cuda-host-only -Xclang -fcuda-include-gpubinary -Xclang ${out_basename}.fatbin"
   fi
 
-  cusan_compile_host_fn
+  if [ "@CUSAN_WITH_TYPEART@" == 1 ]; then
+    cusan_compile_host_with_typeart_fn
+  else
+    cusan_compile_host_fn
+  fi
 }
 
 function cusan_main_driver_fn() {

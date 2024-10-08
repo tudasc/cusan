@@ -360,7 +360,7 @@ function cusan_main_link_fn() {
     cusan_link_objs="${cusan_link_objs} ${cusan_cuda_link_objs}"
   fi
   # shellcheck disable=SC2086 disable=SC2068
-  $cusan_compiler ${cusan_ldflags} ${cusan_cuda_ldflags} ${cusan_san_flags} ${cusan_link_more_args} ${cusan_link_objs}
+  $cusan_compiler ${cusan_ldflags} ${typeart_ldflags} ${cusan_cuda_ldflags} ${cusan_san_flags} ${cusan_link_more_args} ${cusan_link_objs}
 }
 
 # shellcheck disable=SC2068
@@ -450,11 +450,24 @@ function cusan_to_llvm_ir_fn() {
     ${cusan_to_llvm_flags} ${cusan_to_llvm_more_flags} "${cusan_source_file}" -o -
 }
 
+function cusan_compile_with_cusan_host_fn() {
+  cusan_opt_fn "${out_basename}"_cusan_cpu.ll ${cusan_plugin} ${cusan_cpu_mode} |
+    cusan_opt_fn "${out_basename}"_opt.ll ${cusan_optimize}
+}
+
 function cusan_compile_host_fn() {
   # shellcheck disable=SC2086
   cusan_to_llvm_ir_fn |
-    cusan_opt_fn "${out_basename}"_cusan_cpu.ll ${cusan_plugin} ${cusan_cpu_mode} |
-    cusan_opt_fn "${out_basename}"_opt.ll ${cusan_optimize} |
+    cusan_compile_with_cusan_host_fn |
+    cusan_tu_out_fn
+}
+
+function cusan_compile_host_with_typeart_fn() {
+  # shellcheck disable=SC2086
+  cusan_to_llvm_ir_fn |
+    cusan_opt_fn "${out_basename}"_heap.ll ${typeart_plugin} ${typeart_heap_mode_args} ${typeart_cmdline_args_heap} |
+    cusan_compile_with_cusan_host_fn |
+    cusan_opt_fn "${out_basename}"_stack.ll ${typeart_plugin} ${typeart_stack_mode_args} ${typeart_cmdline_args_stack} |
     cusan_tu_out_fn
 }
 

@@ -78,6 +78,12 @@ function(configure_cusan_script input output)
 
   set(CUSAN_SAN_FLAG "-fsanitize=thread")
 
+  if(CUSAN_TYPEART)
+    set(CUSAN_WITH_TYPEART 1)
+  else()
+  set(CUSAN_WITH_TYPEART 0)
+  endif()
+
   cusan_target_generate_file(${input} ${output})
 endfunction()
 
@@ -140,10 +146,25 @@ if(MPI_FOUND)
   set_cusan_mpi_compiler()
 endif()
 
-if(CUSAN_TYPEART)
-  set(CUSAN_WRAPPER cusan-wrapper.in)
-else()
-  set(CUSAN_WRAPPER cusan-wrapper-no-typeart.in)
+set(CUSAN_WRAPPER cusan-wrapper.in)
+
+if(NOT CUSAN_TYPEART)
+  add_library(typeart_runtime_mock SHARED IMPORTED)
+  add_library(typeart::Runtime ALIAS typeart_runtime_mock)
+  set_target_properties(
+    typeart_runtime_mock
+    PROPERTIES
+    OUTPUT_NAME "${PROJECT_NAME}RuntimePlaceholder"
+    IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/lib/runtime"
+  )
+  add_library(typeart_transform_mock SHARED IMPORTED)
+  add_library(typeart::TransformPass ALIAS typeart_transform_mock)
+  set_target_properties(
+    typeart_transform_mock
+    PROPERTIES
+    OUTPUT_NAME "${PROJECT_NAME}TransformPassPlaceholder"
+    IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/lib/runtime"
+  )
 endif()
 
 find_package(MPI)
