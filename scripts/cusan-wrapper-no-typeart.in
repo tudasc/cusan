@@ -55,6 +55,8 @@ function cusan_global_init_fn() {
                    -Wl,-rpath,${cusan_lib_dir}/ \
                    -l$<TARGET_FILE_BASE_NAME:cusan::Runtime>"
 
+  readonly cusan_san_flags="@CUSAN_SAN_FLAG@"
+
   readonly cusan_includes="${cusan_include_dir}"
   readonly cusan_plugin="-load "${cusan_pass}" -cusan"
   readonly cusan_cpu_mode=""
@@ -67,6 +69,12 @@ function cusan_global_init_fn() {
   readonly cusan_compiler="@CUSAN_COMPILER@"
   readonly cusan_opt_tool="@CUSAN_OPT@"
   readonly cusan_llc_tool="@CUSAN_LLC_EXEC@"
+  
+  readonly cusan_to_llvm_flags="-O0 -Xclang -disable-O0-optnone -g -c -emit-llvm"
+  cusan_to_llvm_more_flags=""
+  if [ "${cusan_wrapper_emit_ir}" == 1 ]; then
+    cusan_to_llvm_more_flags="-fno-discard-value-names"
+  fi
 }
 
 function cusan_global_cuda_init_fn() {
@@ -352,7 +360,7 @@ function cusan_main_link_fn() {
     cusan_link_objs="${cusan_link_objs} ${cusan_cuda_link_objs}"
   fi
   # shellcheck disable=SC2086 disable=SC2068
-  $cusan_compiler ${cusan_includes} ${cusan_includes} ${cusan_ldflags} ${cusan_ldflags} ${cusan_cuda_ldflags} ${cusan_san_flags} ${cusan_link_more_args} ${cusan_link_objs}
+  $cusan_compiler ${cusan_ldflags} ${cusan_cuda_ldflags} ${cusan_san_flags} ${cusan_link_more_args} ${cusan_link_objs}
 }
 
 # shellcheck disable=SC2068
@@ -439,7 +447,7 @@ function cusan_compile_cuda_device_fn() {
 
 function cusan_compile_host_fn() {
   # shellcheck disable=SC2086
-  cusan_compiler_fn "${out_basename}"_base.ll -gdwarf-4 ${cusan_wrapper_more_args} ${cusan_includes} ${cusan_includes} ${cusan_san_flags} \
+  cusan_compiler_fn "${out_basename}"_base.ll -gdwarf-4 ${cusan_wrapper_more_args} ${cusan_includes} ${cusan_san_flags} \
     ${cusan_to_llvm_flags} ${cusan_to_llvm_more_flags} "${cusan_source_file}" -o - |
     cusan_opt_fn "${out_basename}"_cusan_cpu.ll ${cusan_plugin} ${cusan_cpu_mode} |
     cusan_opt_fn "${out_basename}"_opt.ll ${cusan_optimize} |

@@ -77,21 +77,7 @@ function(configure_cusan_script input output)
     set(TYPEART_CALLFILTER "--typeart-filter")
   endif()
 
-  if(CUSAN_TYPEART)
-    typeart_target_tsan_flags(TYPEART_SAN_FLAGS)
-  endif()
-
-  if(TYPEART_ASAN)
-    typeart_target_asan_flags(asan_flags)
-    set(TYPEART_SAN_FLAGS ${TYPEART_SAN_FLAGS} ${asan_flags})
-  endif()
-
-  if(TYPEART_UBSAN)
-    typeart_target_ubsan_flags(ubsan_flags)
-    set(TYPEART_SAN_FLAGS ${TYPEART_SAN_FLAGS} ${ubsan_flags})
-  endif()
-
-  list(JOIN TYPEART_SAN_FLAGS " " TYPEART_SAN_FLAGS)
+  set(CUSAN_SAN_FLAG "-fsanitize=thread")
 
   set(CUSAN_INCLUDE_DIRS "-I${PROJECT_SOURCE_DIR}/lib/runtime")
 
