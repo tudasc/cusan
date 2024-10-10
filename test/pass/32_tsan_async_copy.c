@@ -7,8 +7,8 @@
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream 
 // CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamCreate 
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
-// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMemcpyAsync(i8* {{.*}}[[mcpyasy_target:%[0-9a-z]+]], i8* {{.*}}[[mcpyasy_from:%[0-9a-z]+]],
-// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy_async(i8* {{.*}}[[mcpyasy_target]], i8* {{.*}}[[mcpyasy_from]], 
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMemcpyAsync({{i8\*|ptr}} {{.*}}[[mcpyasy_target:%[0-9a-z]+]], {{i8\*|ptr}} {{.*}}[[mcpyasy_from:%[0-9a-z]+]],
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy_async({{i8\*|ptr}} {{.*}}[[mcpyasy_target]], {{i8\*|ptr}} {{.*}}[[mcpyasy_from]], 
 // CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamSynchronize
 // CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamDestroy 
 // CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamDestroy

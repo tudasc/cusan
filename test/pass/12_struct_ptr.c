@@ -3,7 +3,7 @@
 
 
 
-// CHECK-LLVM-IR: @main(i32 noundef %0, i8** noundef %1)
+// CHECK-LLVM-IR: @main(i32 noundef %0, {{i8\*\*|ptr}} noundef %1)
 // CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMalloc
 // CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_device_alloc
 // CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMalloc
