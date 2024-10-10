@@ -182,9 +182,17 @@ function cusan_toolchain_init() {
 
 function cusan_make_ir() {
   local cuda_add_flag="$1"
-  $compiler ${cuda_add_flag} ${omp_flags} ${cusan_include_dir} ${cusan_san_flags} \
-   -O0 -Xclang -disable-O0-optnone -g ${compile_flags} -S -emit-llvm "${source_file}" -o - |
-   $opt_tool -mem2reg -S
+
+  if [ "@CUSAN_NEW_PM_REQUIRED@" == 1 ]; then
+    $compiler ${cuda_add_flag} ${omp_flags} ${cusan_include_dir} ${cusan_san_flags} \
+      -O0 -Xclang -disable-O0-optnone -g ${compile_flags} -D__STRICT_ANSI__ -S -emit-llvm "${source_file}" -o - |
+      $opt_tool -passes=mem2reg -S
+  else
+    $compiler ${cuda_add_flag} ${omp_flags} ${cusan_include_dir} ${cusan_san_flags} \
+      -O0 -Xclang -disable-O0-optnone -g ${compile_flags} -S -emit-llvm "${source_file}" -o - |
+      $opt_tool -mem2reg -S
+  fi
+
 }
 
 function cusan_source_to_llvm() {

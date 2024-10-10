@@ -488,13 +488,26 @@ function cusan_tu_out_fn() {
 
 # shellcheck disable=SC2086
 function cusan_compile_cuda_device_fn() {
-  $cusan_compiler ${cusan_wrapper_more_args} -gdwarf-4 ${cusan_includes} ${cusan_to_llvm_flags} \
-    -fPIC -x cuda "${cusan_source_file}" --cuda-device-only --cuda-gpu-arch=${cusan_cuda_code_arch} -o - |
-    cusan_opt_fn "${out_basename}"_cusan_gpu_mem2reg.ll -mem2reg |
-    cusan_opt_fn "${out_basename}"_cusan_gpu.ll ${cusan_plugin} ${cusan_gpu_mode} |
-    cusan_opt_fn "${out_basename}"_cusan_gpu_opt.ll ${cusan_optimize} |
-    $cusan_llc_tool -dwarf-directory=0 -x=ir --relocation-model=pic -march=nvptx64 -mcpu=${cusan_cuda_code_arch} -mattr=+ptx64 \
-    -o "${out_basename}".ptx
+  local 
+  if [ "@CUSAN_NEW_PM_REQUIRED@" == 1 ]; then
+    $cusan_compiler ${cusan_wrapper_more_args} -gdwarf-4 ${cusan_includes} ${cusan_to_llvm_flags} \
+      -fPIC -x cuda "${cusan_source_file}" --cuda-device-only --cuda-gpu-arch=${cusan_cuda_code_arch} -o - |
+      cusan_opt_fn "${out_basename}"_cusan_gpu_mem2reg.ll -passes=mem2reg |
+      cusan_opt_fn "${out_basename}"_cusan_gpu.ll ${cusan_plugin} ${cusan_gpu_mode} |
+      cusan_opt_fn "${out_basename}"_cusan_gpu_opt.ll ${cusan_optimize} |
+      $cusan_llc_tool -dwarf-directory=0 -x=ir --relocation-model=pic -march=nvptx64 -mcpu=${cusan_cuda_code_arch} -mattr=+ptx64 \
+      -o "${out_basename}".ptx
+  else
+    $cusan_compiler ${cusan_wrapper_more_args} -gdwarf-4 ${cusan_includes} ${cusan_to_llvm_flags} \
+      -fPIC -x cuda "${cusan_source_file}" --cuda-device-only --cuda-gpu-arch=${cusan_cuda_code_arch} -o - |
+      cusan_opt_fn "${out_basename}"_cusan_gpu_mem2reg.ll -mem2reg |
+      cusan_opt_fn "${out_basename}"_cusan_gpu.ll ${cusan_plugin} ${cusan_gpu_mode} |
+      cusan_opt_fn "${out_basename}"_cusan_gpu_opt.ll ${cusan_optimize} |
+      $cusan_llc_tool -dwarf-directory=0 -x=ir --relocation-model=pic -march=nvptx64 -mcpu=${cusan_cuda_code_arch} -mattr=+ptx64 \
+      -o "${out_basename}".ptx
+  fi
+
+
 
   ptxas -m64 --gpu-name=${cusan_cuda_code_arch} "${out_basename}".ptx -o "${out_basename}".ptx.o
 

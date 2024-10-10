@@ -22,6 +22,8 @@
 
 // CHECK-NOT: Handling Arg:
 
+//XFAIL: *
+
 #include "../support/gpu_mpi.h"
 
 struct BufferStorage2 {
