@@ -10,6 +10,7 @@
 #include "FunctionDecl.h"
 #include "analysis/KernelAnalysis.h"
 
+#include <llvm/Demangle/Demangle.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/InstIterator.h>
@@ -31,6 +32,10 @@ namespace analysis {
 
 using KernelArgInfo = cusan::FunctionArg;
 
+inline bool ends_with(std::string& str, std::string_view suffix) {
+  return str.size() >= suffix.size() && str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
 struct CudaKernelInvokeCollector {
   KernelModel& model;
   struct KernelInvokeData {
@@ -40,12 +45,30 @@ struct CudaKernelInvokeCollector {
   };
   using Data = KernelInvokeData;
 
+  bool does_name_match(llvm::CallBase& cb) const {
+#if LLVM_VERSION_MAJOR >= 15
+    auto stub_name      = llvm::demangle(cb.getFunction()->getName());
+#else
+    auto stub_name = llvm::demangle(cb.getFunction()->getName().str());
+#endif
+
+    auto searching_name = llvm::demangle(model.kernel_name);
+    // if we got a lambda it has a return type included that we want to shave off
+    auto first_space                        = searching_name.find(' ');
+    std::string_view searching_without_type = std::string_view(searching_name).substr(first_space + 1);
+
+    return (ends_with(stub_name, searching_name) || ends_with(stub_name, searching_without_type));
+  }
+
   CudaKernelInvokeCollector(KernelModel& current_stub_model) : model(current_stub_model) {
   }
 
   std::optional<KernelInvokeData> match(llvm::CallBase& cb, Function& callee) const {
-    if (callee.getName() == "cudaLaunchKernel") {
-      errs() << "Func:" << callee.getFunction() << "\n";
+    if (callee.getName() == "cudaLaunchKernel" && does_name_match(cb)) {
+      // && ends_with(stub_name, searching_name)
+      // errs() << "Func:" << stub_name << " " << searching_name << "  == " << (stub_name == searching_name) << "\n";
+      // errs() << cb.getFunction()->getName() << "  " << model.kernel_name << "\n" << cb << "\n";
+
       auto* cu_stream_handle      = std::prev(cb.arg_end())->get();
       auto* void_kernel_arg_array = std::prev(cb.arg_end(), 3)->get();
       auto kernel_args            = extract_kernel_args_for(void_kernel_arg_array);
@@ -64,7 +87,11 @@ struct CudaKernelInvokeCollector {
       if (auto* gep = dyn_cast<GetElementPtrInst>(array_user)) {
         for (auto* gep_user : gep->users()) {
           if (auto* store = dyn_cast<StoreInst>(gep_user)) {
-            assert(index < model.args.size());
+            if (!(index < model.args.size())) {
+              errs() << "\n" << *store->getParent()->getParent();
+              errs() << "\nOUT OF BOUNDS FOR MODEL ARG" << index << " VS " << model.args.size() << "\n";
+              assert(false);
+            }
             if (auto* cast = dyn_cast<BitCastInst>(store->getValueOperand())) {
               real_args.push_back(*cast->operand_values().begin());
             } else {
