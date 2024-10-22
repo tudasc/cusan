@@ -201,8 +201,8 @@ void collect_children(FunctionArg& arg, llvm::Value* init_val,
 
     Type* value_type = value->getType();
     if (auto* ptr_type = dyn_cast<PointerType>(value_type)) {
-      //auto* elem_type = ptr_type->getPointerElementType();
-      // if (elem_type->isStructTy() || elem_type->isPointerTy()) {
+      // auto* elem_type = ptr_type->getPointerElementType();
+      //  if (elem_type->isStructTy() || elem_type->isPointerTy()) {
       for (Use& value_use : value->uses()) {
         User* value_user = value_use.getUser();
         if (auto* call = dyn_cast<CallBase>(value_user)) {
@@ -218,7 +218,7 @@ void collect_children(FunctionArg& arg, llvm::Value* init_val,
             continue;
           }
           visited_funcs.insert(called);
-          
+
           Argument* ipo_argument = called->getArg(value_use.getOperandNo());
           {
             const auto access_res = determinePointerAccessAttrs(ipo_argument);
@@ -237,13 +237,13 @@ void collect_children(FunctionArg& arg, llvm::Value* init_val,
         } else if (auto* gep = dyn_cast<GetElementPtrInst>(value_user)) {
           auto gep_indicies                   = gep->indices();
           auto sub_index_stack                = index_stack;
-          llvm::SmallVector<int64_t> indicies = {};
+          llvm::SmallVector<int64_t> indices = {};
           bool all_constant                   = true;
-        
+
           for (unsigned i = 0; i < gep->getNumIndices(); i++) {
             auto* index = gep_indicies.begin() + i;
             if (auto* index_value = dyn_cast<ConstantInt>(index->get())) {
-              indicies.push_back(index_value->getSExtValue());
+              indices.push_back(index_value->getSExtValue());
             } else {
               LOG_WARNING("Failed to determine access pattern for argument '" << arg.arg_pos
                                                                               << "' since it uses dynamic gep indices");
@@ -252,7 +252,7 @@ void collect_children(FunctionArg& arg, llvm::Value* init_val,
             }
           }
           if (all_constant) {
-            sub_index_stack.push_back(FunctionSubArg::SubIndex{std::move(indicies)});
+            sub_index_stack.push_back(FunctionSubArg::SubIndex{std::move(indices)});
             work_list.push_back({gep, sub_index_stack});
           }
         }
@@ -358,10 +358,14 @@ std::optional<KernelModel> kernel_model_for_stub(llvm::Function* func, const Mod
       stub_name.erase(pos, prefix.length());
     }
     return stub_name;
-  }(util::try_demangle(*func));
+  }(util::try_demangle_fully(*func));
 
   const auto result = llvm::find_if(models.models, [&stub_name](const auto& model_) {
-    return llvm::StringRef(util::demangle(model_.kernel_name)).startswith(stub_name);
+#if LLVM_VERSION_MAJOR > 15
+    return llvm::StringRef(util::try_demangle_fully(model_.kernel_name)).starts_with(stub_name);
+#else
+    return llvm::StringRef(util::try_demangle_fully(model_.kernel_name)).startswith(stub_name);
+#endif
   });
 
   if (result != std::end(models.models)) {

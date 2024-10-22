@@ -304,7 +304,7 @@ void _cusan_kernel_register(void** kernel_args, short* modes, int n, RawStream s
         // since all allocations are non overlapping and the start of the allocation needs to be smaller then our ptr
         const auto& alloc = *std::prev(subsequent_alloc);
         assert(alloc.first <= ptr);
-        // still gotta verify were inside tho
+        // still got to verify were inside though
         if ((const char*)alloc.first + alloc.second.size >= ptr) {
           total_bytes = alloc.second.size;
           found       = true;

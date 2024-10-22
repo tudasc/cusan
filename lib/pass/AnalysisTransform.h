@@ -9,6 +9,8 @@
 
 #include "FunctionDecl.h"
 #include "analysis/KernelAnalysis.h"
+#include "support/Logger.h"
+#include "support/Util.h"
 
 #include <llvm/Demangle/Demangle.h>
 #include <llvm/IR/Function.h>
@@ -32,9 +34,40 @@ namespace analysis {
 
 using KernelArgInfo = cusan::FunctionArg;
 
-inline bool ends_with(std::string& str, std::string_view suffix) {
-  return str.size() >= suffix.size() && str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
+// inline bool ends_with(const std::string& str, std::string_view suffix) {
+//   return str.size() >= suffix.size() && str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
+// }
+
+namespace helper {
+template <typename... Strings>
+bool ends_with_any_of(const std::string& name, Strings&&... searching_names) {
+  const llvm::StringRef name_ref{name};
+#if LLVM_VERSION_MAJOR > 15
+  return (name_ref.ends_with(searching_names) || ...);
+#else
+  return (name_ref.endswith(searching_names) || ...);
+#endif
 }
+
+inline bool does_name_match(const std::string& model_kernel_name, llvm::CallBase& cb) {
+  assert(cb.getFunction() != nullptr && "Callbase requires function.");
+  const auto stub_name      = util::try_demangle_fully(*cb.getFunction());
+  const auto searching_name = util::try_demangle_fully(model_kernel_name);
+
+  StringRef searching_without_type{searching_name};
+  if (StringRef{stub_name}.contains("lambda")) {
+    LOG_DEBUG("Detected lambda function in stub name " << stub_name)
+    // if we got a lambda it has a return type included that we want to shave off
+    const auto first_space = searching_name.find(' ');
+    searching_without_type = llvm::StringRef(searching_name).substr(first_space + 1);
+  }
+
+  LOG_DEBUG("Check stub \"" << stub_name << "\" ends with \"" << searching_name << "\" or \"" << searching_without_type
+                            << "\"")
+  return helper::ends_with_any_of(stub_name, searching_name, searching_without_type);
+}
+
+}  // namespace helper
 
 struct CudaKernelInvokeCollector {
   KernelModel& model;
@@ -45,26 +78,11 @@ struct CudaKernelInvokeCollector {
   };
   using Data = KernelInvokeData;
 
-  bool does_name_match(llvm::CallBase& cb) const {
-#if LLVM_VERSION_MAJOR >= 15
-    auto stub_name      = llvm::demangle(cb.getFunction()->getName());
-#else
-    auto stub_name = llvm::demangle(cb.getFunction()->getName().str());
-#endif
-
-    auto searching_name = llvm::demangle(model.kernel_name);
-    // if we got a lambda it has a return type included that we want to shave off
-    auto first_space                        = searching_name.find(' ');
-    std::string_view searching_without_type = std::string_view(searching_name).substr(first_space + 1);
-
-    return (ends_with(stub_name, searching_name) || ends_with(stub_name, searching_without_type));
-  }
-
   CudaKernelInvokeCollector(KernelModel& current_stub_model) : model(current_stub_model) {
   }
 
   std::optional<KernelInvokeData> match(llvm::CallBase& cb, Function& callee) const {
-    if (callee.getName() == "cudaLaunchKernel" && does_name_match(cb)) {
+    if (callee.getName() == "cudaLaunchKernel" && helper::does_name_match(model.kernel_name, cb)) {
       // && ends_with(stub_name, searching_name)
       // errs() << "Func:" << stub_name << " " << searching_name << "  == " << (stub_name == searching_name) << "\n";
       // errs() << cb.getFunction()->getName() << "  " << model.kernel_name << "\n" << cb << "\n";
@@ -88,16 +106,14 @@ struct CudaKernelInvokeCollector {
         for (auto* gep_user : gep->users()) {
           if (auto* store = dyn_cast<StoreInst>(gep_user)) {
             if (!(index < model.args.size())) {
-              errs() << "\n" << *store->getParent()->getParent();
-              errs() << "\nOUT OF BOUNDS FOR MODEL ARG" << index << " VS " << model.args.size() << "\n";
-              assert(false);
+              LOG_FATAL("In: " << *store->getParent()->getParent())
+              LOG_FATAL("Out of bounds for model args: " << index << " vs. " << model.args.size());
+              assert(false && "Encountered out of bounds access");
             }
             if (auto* cast = dyn_cast<BitCastInst>(store->getValueOperand())) {
               real_args.push_back(*cast->operand_values().begin());
             } else {
               real_args.push_back(*store->operand_values().begin());
-
-              // assert(false);
             }
             index++;
           }
@@ -109,7 +125,7 @@ struct CudaKernelInvokeCollector {
     for (auto& res : result) {
       Value* val = real_args[real_args.size() - 1 - res.arg_pos];
       // because of ABI? clang might convert struct argument to a (byval)pointer
-      // but the actual cuda argument is just a value. So we doulbe check that it actually allocates a pointer
+      // but the actual cuda argument is just a value. So we double check that it actually allocates a pointer
       bool real_ptr = false;
       if (auto* as_alloca = dyn_cast<AllocaInst>(val)) {
         real_ptr = res.is_pointer && as_alloca->getAllocatedType()->isPointerTy();
@@ -188,9 +204,9 @@ struct KernelInvokeTransformer {
 
     size_t arg_array_index = 0;
     for (const auto& arg : data.args) {
-      errs() << "Handling Arg: " << arg << "\n";
+      LOG_DEBUG("Handling Arg: " << arg)
       for (const auto& sub_arg : arg.subargs) {
-        errs() << "   subarg: " << sub_arg << "\n";
+        LOG_DEBUG("   subarg: " << sub_arg)
         const auto access = access_cast(sub_arg.state, sub_arg.is_pointer);
         Value* idx        = ConstantInt::get(i32_ty, arg_array_index);
         Value* acc        = ConstantInt::get(i16_ty, access);
@@ -217,7 +233,7 @@ struct KernelInvokeTransformer {
               value_ptr = irb.CreateLoad(value_ptr->getType()->getPointerElementType(), value_ptr);
 #endif
             } else {
-              errs() << "Cannot handle this kind of access " << sub_arg << "\n";
+              LOG_ERROR("Cannot handle this kind of access " << sub_arg)
             }
           }
 

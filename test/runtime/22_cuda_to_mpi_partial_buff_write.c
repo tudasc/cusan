@@ -32,7 +32,7 @@ int main(int argc, char* argv[]) {
   const int size            = 512;
   const int threadsPerBlock = size;
   const int blocksPerGrid   = (size + threadsPerBlock - 1) / threadsPerBlock;
-  static_assert(size % 2 == 0, "Needs to be divisble by 2");
+  static_assert(size % 2 == 0, "Needs to be divisible by 2");
   const int half_size = size / 2;
 
   MPI_Init(&argc, &argv);

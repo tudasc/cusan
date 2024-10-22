@@ -34,6 +34,7 @@ option(CUSAN_CONFIG_DIR_IS_SHARE "Install to \"share/cmake/\" instead of \"lib/c
 mark_as_advanced(CUSAN_CONFIG_DIR_IS_SHARE)
 
 set(CUSAN_LOG_LEVEL_RT 3 CACHE STRING "Granularity of runtime logger. 3 is most verbose, 0 is least.")
+set(CUSAN_LOG_LEVEL_PASS 3  CACHE STRING "Granularity of transform pass logger. 3 is most verbose, 0 is least.")
 
 option(CUSAN_TYPEART "Use external typeart to track allocations" OFF)
 option(CUSAN_FIBERPOOL "Use external fiber pool to manage ThreadSanitizer fibers" OFF)

@@ -1,4 +1,5 @@
-// RUN: %apply  %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s
+// RUN: %apply  %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | \
+// RUN: %filecheck %s
 
 // CHECK-NOT: Handling Arg:
 // CHECK: Handling Arg:

@@ -51,7 +51,7 @@ struct FunctionSubArg {
     bool is_load;
     llvm::SmallVector<int64_t> gep_indicies;
 
-    explicit SubIndex(llvm::SmallVector<int64_t> indicies) : is_load(false), gep_indicies(std::move(indicies)) {
+    explicit SubIndex(llvm::SmallVector<int64_t> indices) : is_load(false), gep_indicies(std::move(indices)) {
     }
     explicit SubIndex() : is_load(true), gep_indicies({}) {
     }

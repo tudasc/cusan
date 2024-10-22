@@ -75,15 +75,12 @@ struct FunctionDecl {
       }
     };
 
-
-    auto *void_ptr = Type::getInt8Ty(c)->getPointerTo();
+    auto* void_ptr  = Type::getInt8Ty(c)->getPointerTo();
     auto* int16_ptr = Type::getInt16Ty(c)->getPointerTo();
 
     using ArgTypes = decltype(CusanFunction::arg_types);
 
-
-    ArgTypes arg_types_cusan_register = {PointerType::get(void_ptr, 0), int16_ptr,
-                                         Type::getInt32Ty(c), void_ptr};
+    ArgTypes arg_types_cusan_register = {PointerType::get(void_ptr, 0), int16_ptr, Type::getInt32Ty(c), void_ptr};
     make_function(cusan_register_access, arg_types_cusan_register);
 
     ArgTypes arg_types_sync_device = {};
@@ -103,7 +100,7 @@ struct FunctionDecl {
     ArgTypes arg_types_stream_create = {void_ptr, Type::getInt32Ty(c)};
     make_function(cusan_stream_create, arg_types_stream_create);
 
-    auto *size_t_ty = m.getDataLayout().getIntPtrType(c);
+    auto* size_t_ty = m.getDataLayout().getIntPtrType(c);
 
     // void* devPtr, size_t count, RawStream* stream
     ArgTypes arg_types_memset_async = {void_ptr, size_t_ty, void_ptr};
@@ -158,19 +155,17 @@ struct FunctionDecl {
     make_function(cusan_event_query, arg_event_query);
 
     // void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height, cusan_MemcpyKind kind
-    ArgTypes arg_types_memcpy_2d = {
-        void_ptr, size_t_ty, void_ptr, size_t_ty, size_t_ty, size_t_ty, Type::getInt32Ty(c)};
+    ArgTypes arg_types_memcpy_2d = {void_ptr,  size_t_ty, void_ptr,           size_t_ty,
+                                    size_t_ty, size_t_ty, Type::getInt32Ty(c)};
     make_function(cusan_memcpy_2d, arg_types_memcpy_2d);
 
     // void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height, cusan_MemcpyKind kind
-    ArgTypes arg_types_memcpy_2d_async = {
-        void_ptr, size_t_ty, void_ptr, size_t_ty, size_t_ty, size_t_ty, Type::getInt32Ty(c),
-        void_ptr};
+    ArgTypes arg_types_memcpy_2d_async = {void_ptr,  size_t_ty,           void_ptr, size_t_ty, size_t_ty,
+                                          size_t_ty, Type::getInt32Ty(c), void_ptr};
     make_function(cusan_memcpy_2d_async, arg_types_memcpy_2d_async);
 
     // void* devPtr, size_t pitch, size_t width, size_t height, cudaStream_t stream = 0
-    ArgTypes arg_types_memset_2d_async = {void_ptr, size_t_ty, size_t_ty, size_t_ty,
-                                          void_ptr};
+    ArgTypes arg_types_memset_2d_async = {void_ptr, size_t_ty, size_t_ty, size_t_ty, void_ptr};
     make_function(cusan_memset_2d_async, arg_types_memset_2d_async);
 
     //  void* devPtr, size_t pitch, size_t width, size_t height

@@ -20,7 +20,6 @@
 // CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamDestroy
 // CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamDestroy
 
-
 #include <cstdio>
 #include <cuda_runtime.h>
 #include <mpi.h>

@@ -41,8 +41,8 @@ int main(int argc, char* argv[]) {
 
   buffStor.buff2 = 0;
 
-  // since we set the bolean argument to false buff2 could contain nullptrs since we dont use it
-  //  but the pass analyses based on the static code and so it doesnt know this runtime information
+  // since we set the boolean argument to false buff2 could contain nullptrs since we don't use it
+  //  but the pass analyses based on the static code and so it doesn't know this runtime information
   kernel<<<blocksPerGrid, threadsPerBlock, 0>>>(buffStor, size, false);
 #ifdef CUSAN_SYNC
   cudaDeviceSynchronize();

@@ -72,7 +72,7 @@ function(cusan_add_lit_target)
       set(TARGET_NAME check-cusan-${suite})
     endif()
 
-    if(NOT EXISTS ${SUITE_PATH})
+    if(NOT EXISTS ${SUITE_PATH} AND NOT ${suite} STREQUAL "staging")
       message(WARNING "Could not find suitable lit test target at ${SUITE_PATH}")
       continue()
     endif()

@@ -7,8 +7,6 @@
 // CHECK-NOT: data race
 // CHECK-NOT: [Error] sync
 
-
-
 #include "../support/gpu_mpi.h"
 
 __global__ void kernel_init(int* arr, const int N) {
