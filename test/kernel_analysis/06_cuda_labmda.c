@@ -3,8 +3,8 @@
 
 // CHECK-NOT: Handling Arg:
 // CHECK: Handling Arg:
-// CHECK-NEXT: subarg: {{.*}}indices:[], ptr: 1, rw: ReadWrite
-// CHECK-NEXT: subarg: {{.*}}indices:{{.}}[0, 0, ], L, ], ptr: 1, rw: Write
+// CHECK-NEXT: subarg: {{.*}}gep_indices:[], ptr: 1, rw: ReadWrite
+// CHECK-NEXT: subarg: {{.*}}, is_loading, gep_indices:[0, 0, ], ptr: 1, rw: Write
 // CHECK-NOT: Handling Arg:
 
 #include <cstdio>

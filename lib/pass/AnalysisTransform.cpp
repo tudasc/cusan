@@ -15,7 +15,6 @@ auto get_void_ptr_type(IRBuilder<>& irb) {
 namespace analysis {
 namespace helper {
 
-
 bool does_name_match(const std::string& model_kernel_name, llvm::CallBase& cb) {
   assert(cb.getFunction() != nullptr && "Callbase requires function.");
   const auto stub_name      = util::try_demangle_fully(*cb.getFunction());
@@ -90,7 +89,8 @@ llvm::SmallVector<KernelArgInfo, 4> CudaKernelInvokeCollector::extract_kernel_ar
     // not fake pointer from clang so load it before getting subargs
     for (auto& sub_arg : res.subargs) {
       if (real_ptr) {
-        sub_arg.indices.insert(sub_arg.indices.begin(), FunctionSubArg::SubIndex{});
+        sub_arg.does_load = true;
+        sub_arg.gep_indicies.clear();
       }
       sub_arg.value = val;
     }
@@ -170,20 +170,19 @@ bool KernelInvokeTransformer::generate_compound_cb(const analysis::CudaKernelInv
         if (auto* alloca_value = dyn_cast_or_null<AllocaInst>(value_ptr)) {
           auto* subtype = alloca_value->getAllocatedType();
 
-          if (sub_arg.indices.empty()) {
-          } else if (sub_arg.indices.size() == 1 && sub_arg.indices[0].is_load) {
-            value_ptr = irb.CreateLoad(subtype, value_ptr);
-          } else if (sub_arg.indices.size() == 2 && !sub_arg.indices[0].is_load && sub_arg.indices[1].is_load) {
-            llvm::SmallVector<Value*> values{llvm::map_range(
-                sub_arg.indices[0].gep_indicies, [&irb](auto index) { return (Value*)irb.getInt32(index); })};
+          if (!sub_arg.gep_indicies.empty()) {
+            llvm::SmallVector<Value*> values{
+                llvm::map_range(sub_arg.gep_indicies, [&irb](auto index) { return (Value*)irb.getInt32(index); })};
             value_ptr = irb.CreateGEP(subtype, value_ptr, values);
 #if LLVM_VERSION_MAJOR >= 15
-            value_ptr = irb.CreateLoad(void_ptr_ty, value_ptr);
+            subtype = void_ptr_ty;
 #else
-            value_ptr = irb.CreateLoad(value_ptr->getType()->getPointerElementType(), value_ptr);
+            subtype = value_ptr->getType()->getPointerElementType();
 #endif
-          } else {
-            LOG_ERROR("Cannot handle this kind of access " << sub_arg)
+          }
+
+          if (sub_arg.does_load) {
+            value_ptr = irb.CreateLoad(subtype, value_ptr);
           }
         }
 
