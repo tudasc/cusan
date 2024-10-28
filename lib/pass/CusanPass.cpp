@@ -58,7 +58,7 @@ class LegacyCusanPass : public llvm::ModulePass {
  public:
   static char ID;  // NOLINT
 
-  LegacyCusanPass() : ModulePass(ID){};
+  LegacyCusanPass() : ModulePass(ID) {};
 
   bool runOnModule(llvm::Module& module) override;
 
@@ -163,8 +163,6 @@ bool CusanPass::runOnFunc(llvm::Function& function) {
   modified |= transform::StreamCreateWithFlagsInstrumenter(&cusan_decls_).instrument(function);
   modified |= transform::StreamCreateWithPriorityInstrumenter(&cusan_decls_).instrument(function);
   modified |= transform::CudaMallocPitch(&cusan_decls_).instrument(function);
-
-  // Now 'modified' is true if any of the calls returned true.
 
   auto data_for_host = host::kernel_model_for_stub(&function, this->kernel_models_);
   if (data_for_host) {
