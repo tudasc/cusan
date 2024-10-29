@@ -332,60 +332,16 @@ void _cusan_kernel_register(void** kernel_args, short* modes, int n, RawStream s
       sizes.push_back(0);
       continue;
     }
-    auto* ptr = kernel_args[i];
 
-#ifndef CUSAN_TYPEART
-    // since this is a std::map it should be in ascending order
-    //"Iterators of std::map iterate in ascending order of keys, "
-    // so as soon we encoutner a pointer biger then ours we can bail and we failed
-    size_t total_bytes = 0;
-    bool found         = false;
-
-    const auto& allocs = runtime.get_allocations();
-
-    // if there exists any allocation
-    if (allocs.size() > 0) {
-      // find the first allocation that is bigger or equal then what we search for
-      auto subsequent_alloc = allocs.lower_bound(ptr);
-
-      // if its equal we got our match
-      if (subsequent_alloc->first == ptr) {
-        total_bytes = subsequent_alloc->second.size;
-        found       = true;
-      }
-      // else if there exists a previous allocation
-      else if (subsequent_alloc != allocs.begin()) {
-        // it is the only one that might include our pointer
-        // since all allocations are non overlapping and the start of the allocation needs to be smaller then our ptr
-        const auto& alloc = *std::prev(subsequent_alloc);
-        assert(alloc.first <= ptr);
-        // still gotta verify were inside tho
-        if ((const char*)alloc.first + alloc.second.size >= ptr) {
-          total_bytes = alloc.second.size;
-          found       = true;
-        }
-      }
-    }
-    if (!found) {
+    const auto* ptr          = kernel_args[i];
+    const auto size_in_bytes = helper::find_memory_alloc_size(runtime, ptr);
+    if (!size_in_bytes) {
       LOG_TRACE(" [cusan]    Querying allocation length failed on " << ptr);
       sizes.push_back(0);
       continue;
     }
-#else
-    size_t alloc_size{0};
-    int alloc_id{0};
-    auto query_status = typeart_get_type(ptr, &alloc_id, &alloc_size);
-    if (query_status != TYPEART_OK) {
-      LOG_TRACE(" [cusan]    Querying allocation length failed on " << ptr << ". Code: " << int(query_status))
-      sizes.push_back(0);
-      continue;
-    }
-    const auto bytes_for_type = typeart_get_type_size(alloc_id);
-    const auto total_bytes    = bytes_for_type * alloc_size;
-    LOG_TRACE(" [cusan]    Querying allocation length of " << ptr << ". Code: " << int(query_status) << "  with size"
-                                                           << total_bytes)
-#endif
-    sizes.push_back(total_bytes);
+
+    sizes.push_back(size_in_bytes.value());
   }
 
   runtime.stats_recorder.inc_kernel_register_calls();

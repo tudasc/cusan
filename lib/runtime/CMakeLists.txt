@@ -77,7 +77,7 @@ target_compile_features(cusan_Runtime PUBLIC cxx_std_17)
 target_link_libraries(cusan_Runtime PRIVATE CUDA::cudart)
 
 if(CUSAN_TYPEART)
-target_link_libraries(cusan_Runtime PRIVATE typeart::Runtime)
+  target_link_libraries(cusan_Runtime PRIVATE typeart::Runtime)
 endif()
 target_link_libraries(cusan_Runtime PRIVATE LLVMSupport)
 
