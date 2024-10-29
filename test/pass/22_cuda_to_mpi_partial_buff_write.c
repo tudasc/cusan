@@ -3,7 +3,6 @@
 // RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 // clang-format on
 
-
 // CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamCreate
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
 // CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamSynchronize
@@ -43,7 +42,7 @@ int main(int argc, char* argv[]) {
   const int size            = 512;
   const int threadsPerBlock = size;
   const int blocksPerGrid   = (size + threadsPerBlock - 1) / threadsPerBlock;
-  static_assert(size % 2 == 0, "Needs to be divisble by 2");
+  static_assert(size % 2 == 0, "Needs to be divisible by 2");
   const int half_size = size / 2;
 
   MPI_Init(&argc, &argv);

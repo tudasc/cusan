@@ -1,12 +1,10 @@
 // clang-format off
-// RUN: %wrapper-cxx %tsan-compile-flags -O1 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
+// RUN: %wrapper-cxx %clang_args %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
 // RUN: %tsan-options %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck --allow-empty %s
 // clang-format on
 
 // CHECK-NOT: data race
 // CHECK-NOT: [Error] sync
-
-
 
 #include <cuda_runtime.h>
 #include <stdio.h>

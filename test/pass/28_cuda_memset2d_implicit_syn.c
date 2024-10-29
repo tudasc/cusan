@@ -3,29 +3,28 @@
 // RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 // clang-format on
 
-
-// CHECK-LLVM-IR: call void @_cusan_kernel_register
-// CHECK-LLVM-IR: invoke noundef i32 @cudaLaunchKernel
-// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
-// CHECK-LLVM-IR: invoke void @_cusan_create_stream
-// CHECK-LLVM-IR: invoke i32 @cudaStreamCreateWithPriority
-// CHECK-LLVM-IR: invoke void @_cusan_create_stream
-// CHECK-LLVM-IR: invoke i32 @cudaMemset2D
-// CHECK-LLVM-IR: invoke void @_cusan_memset_2d
-// CHECK-LLVM-IR: invoke i32 @cudaDeviceSynchronize
-// CHECK-LLVM-IR: invoke void @_cusan_sync_device
-// CHECK-LLVM-IR: invoke i32 @cudaMemcpy2DAsync
-// CHECK-LLVM-IR: invoke void @_cusan_memcpy_2d_async
-// CHECK-LLVM-IR: invoke i32 @cudaStreamSynchronize
-// CHECK-LLVM-IR: invoke void @_cusan_sync_stream
-// CHECK-LLVM-IR: invoke i32 @cudaFree
-// CHECK-LLVM-IR: invoke void @_cusan_device_free
-// CHECK-LLVM-IR: invoke i32 @cudaFree
-// CHECK-LLVM-IR: invoke void @_cusan_device_free
-// CHECK-LLVM-IR: invoke i32 @cudaStreamDestroy
-// CHECK-LLVM-IR: invoke i32 @cudaStreamDestroy
-// CHECK-LLVM-IR: invoke i32 @cudaMallocPitch
-// CHECK-LLVM-IR: call void @_cusan_device_alloc
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_kernel_register
+// CHECK-LLVM-IR: {{(call|invoke)}} noundef i32 @cudaLaunchKernel
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamCreate
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_create_stream
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamCreateWithPriority
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_create_stream
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMemset2D
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_memset_2d
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaDeviceSynchronize
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_sync_device
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMemcpy2DAsync
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_memcpy_2d_async
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamSynchronize
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_sync_stream
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaFree
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_device_free
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaFree
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_device_free
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamDestroy
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamDestroy
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMallocPitch
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_device_alloc
 
 #include "../support/gpu_mpi.h"
 
@@ -57,7 +56,7 @@ int main(int argc, char* argv[]) {
   int* dummy_d_data;
   size_t dummy_pitch;
   cudaMallocPitch(&dummy_d_data, &dummy_pitch, width * sizeof(int), height);
-  int* h_data       = (int*)malloc(width * sizeof(int) * height);
+  int* h_data = (int*)malloc(width * sizeof(int) * height);
 
   size_t true_buffer_size = pitch * height;
   size_t true_n_elements  = true_buffer_size / sizeof(int);
@@ -88,7 +87,7 @@ int main(int argc, char* argv[]) {
   cudaStreamSynchronize(stream2);
   for (int i = 0; i < width * height; i++) {
     const int buf_v = h_data[i];
-    //printf("buf[%d] = %d\n", i, buf_v);
+    // printf("buf[%d] = %d\n", i, buf_v);
     if (buf_v == 0) {
       printf("[Error] sync\n");
       break;

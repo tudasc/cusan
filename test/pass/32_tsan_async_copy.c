@@ -3,15 +3,15 @@
 // RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 
 
-// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate 
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamCreate 
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream 
-// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate 
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamCreate 
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
-// CHECK-LLVM-IR: invoke i32 @cudaMemcpyAsync(i8* {{.*}}[[mcpyasy_target:%[0-9a-z]+]], i8* {{.*}}[[mcpyasy_from:%[0-9a-z]+]],
-// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy_async(i8* {{.*}}[[mcpyasy_target]], i8* {{.*}}[[mcpyasy_from]], 
-// CHECK-LLVM-IR: invoke i32 @cudaStreamSynchronize
-// CHECK-LLVM-IR: invoke i32 @cudaStreamDestroy 
-// CHECK-LLVM-IR: invoke i32 @cudaStreamDestroy
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMemcpyAsync({{i8\*|ptr}} {{.*}}[[mcpyasy_target:%[0-9a-z]+]], {{i8\*|ptr}} {{.*}}[[mcpyasy_from:%[0-9a-z]+]],
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy_async({{i8\*|ptr}} {{.*}}[[mcpyasy_target]], {{i8\*|ptr}} {{.*}}[[mcpyasy_from]], 
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamSynchronize
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamDestroy 
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamDestroy
 
 // clang-format on
 

@@ -32,3 +32,13 @@ if(CUSAN_FIBERPOOL)
     FETCHCONTENT_UPDATES_DISCONNECTED_FIBER_POOL
     )
 endif()
+
+if(CUSAN_TYPEART)
+    FetchContent_Declare(
+    typeart
+    GIT_REPOSITORY https://github.com/tudasc/TypeART.git
+    GIT_TAG v1.9.0b-cuda.1
+    GIT_SHALLOW 1
+    )
+    FetchContent_MakeAvailable(typeart)
+endif()

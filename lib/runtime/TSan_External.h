@@ -22,7 +22,7 @@ typedef unsigned short a16;
 typedef unsigned int a32;
 typedef unsigned long long a64;
 
-#include "cstdio"
+#include <cstdio>
 
 #ifdef CUSAN_FIBERPOOL
 #include "fiberpool.h"
@@ -94,12 +94,12 @@ void __attribute__((weak)) AnnotateRWLockCreate(const char* file, int line, cons
 void __attribute__((weak)) AnnotateRWLockDestroy(const char* file, int line, const volatile void* cv) {
   FALLBACK_PRINT(__func__);
 }
-void __attribute__((weak))
-AnnotateRWLockAcquired(const char* file, int line, const volatile void* cv, unsigned long long is_w) {
+void __attribute__((weak)) AnnotateRWLockAcquired(const char* file, int line, const volatile void* cv,
+                                                  unsigned long long is_w) {
   FALLBACK_PRINT(__func__);
 }
-void __attribute__((weak))
-AnnotateRWLockReleased(const char* file, int line, const volatile void* cv, unsigned long long is_w) {
+void __attribute__((weak)) AnnotateRWLockReleased(const char* file, int line, const volatile void* cv,
+                                                  unsigned long long is_w) {
   FALLBACK_PRINT(__func__);
 }
 

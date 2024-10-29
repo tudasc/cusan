@@ -11,9 +11,11 @@
 #endif
 #include "analysis/KernelModel.h"
 #include "support/Logger.h"
-#include "TSan_External.h"
 #include "StatsCounter.h"
+#if CUSAN_SOFTCOUNTER
 #include "support/Table.h"
+#endif
+#include "TSanInterface.h"
 // clang-format on
 #include <cstddef>
 #include <iostream>
@@ -65,7 +67,7 @@ struct PtrAttribute {
 
 PtrAttribute access_cast_back(short cb_value) {
   const short access = (cb_value >> 1);
-  const bool ptr     = cb_value & 1;
+  const bool ptr     = (cb_value & 1) != 0;
   return PtrAttribute{AccessState{access}, ptr};
 }
 
@@ -243,6 +245,11 @@ class Runtime {
 #define cusan_stat_handle(name) table.put(Row::make(#name, stats_recorder.get_##name()));
 #if CUSAN_SOFTCOUNTER
     Table table{"Cusan runtime statistics"};
+#ifdef CUSAN_FIBERPOOL
+    table.put(Row::make("Fiberpool", 1));
+#else
+    table.put(Row::make("Fiberpool", 0));
+#endif
     CUSAN_CUDA_EVENT_LIST
 #include "TsanEvents.inc"
     table.put(Row::make("TsanMemoryReadSize[KB]", stats_recorder.stats_r.getAvg() / 1024.0));
@@ -268,6 +275,52 @@ cusan_MemcpyKind infer_memcpy_direction(const void* target, const void* from);
 
 using namespace cusan::runtime;
 
+namespace helper {
+#ifndef CUSAN_TYPEART
+inline std::optional<size_t> find_memory_alloc_size(const Runtime& runtime, const void* ptr) {
+  const auto& allocs = runtime.get_allocations();
+
+  // if there exists any allocation
+  if (allocs.size() > 0) {
+    // find the first allocation that is bigger or equal then what we search for
+    const auto subsequent_alloc = allocs.lower_bound(ptr);
+
+    // if its equal we got our match
+    if (subsequent_alloc->first == ptr) {
+      return subsequent_alloc->second.size;
+    }
+    // else if there exists a previous allocation
+    else if (subsequent_alloc != allocs.begin()) {
+      // it is the only one that might include our pointer
+      // since all allocations are non overlapping and the start of the allocation needs to be smaller then our ptr
+      const auto& alloc = *std::prev(subsequent_alloc);
+      assert(alloc.first <= ptr);
+      // still got to verify were inside though
+      if (((const char*)alloc.first + alloc.second.size) >= ptr) {
+        return alloc.second.size;
+      }
+    }
+  }
+  return {};
+}
+#else
+inline std::optional<size_t> find_memory_alloc_size(const Runtime&, const void* ptr) {
+  size_t alloc_size{0};
+  int alloc_id{0};
+  auto query_status = typeart_get_type(ptr, &alloc_id, &alloc_size);
+  if (query_status != TYPEART_OK) {
+    LOG_TRACE(" [cusan]    Querying allocation length failed on " << ptr << ". Code: " << int(query_status))
+    return {};
+  }
+  const auto bytes_for_type = typeart_get_type_size(alloc_id);
+  const auto total_bytes    = bytes_for_type * alloc_size;
+  LOG_TRACE(" [cusan]    Querying allocation length of " << ptr << ". Code: " << int(query_status) << "  with size"
+                                                         << total_bytes)
+  return total_bytes;
+}
+#endif
+}  // namespace helper
+
 void _cusan_kernel_register(void** kernel_args, short* modes, int n, RawStream stream) {
   LOG_TRACE("[cusan]Kernel Register with " << n << " Args and on stream:" << stream)
   auto& runtime = Runtime::get();
@@ -279,58 +332,16 @@ void _cusan_kernel_register(void** kernel_args, short* modes, int n, RawStream s
       sizes.push_back(0);
       continue;
     }
-    auto* ptr = kernel_args[i];
 
-#ifndef CUSAN_TYPEART
-
-    size_t total_bytes = 0;
-    bool found         = false;
-
-    const auto& allocs = runtime.get_allocations();
-
-    // if there exists any allocation
-    if (allocs.size() > 0) {
-      // find the first allocation that is bigger or equal then what we search for
-      auto subsequent_alloc = allocs.lower_bound(ptr);
-
-      // if its equal we got our match
-      if (subsequent_alloc->first == ptr) {
-        total_bytes = subsequent_alloc->second.size;
-        found       = true;
-      }
-      // else if there exists a previous allocation
-      else if (subsequent_alloc != allocs.begin()) {
-        // it is the only one that might include our pointer
-        // since all allocations are non overlapping and the start of the allocation needs to be smaller then our ptr
-        const auto& alloc = *std::prev(subsequent_alloc);
-        assert(alloc.first <= ptr);
-        // still gotta verify were inside tho
-        if ((const char*)alloc.first + alloc.second.size >= ptr) {
-          total_bytes = alloc.second.size;
-          found       = true;
-        }
-      }
-    }
-    if (!found) {
+    const auto* ptr          = kernel_args[i];
+    const auto size_in_bytes = helper::find_memory_alloc_size(runtime, ptr);
+    if (!size_in_bytes) {
       LOG_TRACE(" [cusan]    Querying allocation length failed on " << ptr);
       sizes.push_back(0);
       continue;
     }
-#else
-    size_t alloc_size{0};
-    int alloc_id{0};
-    auto query_status = typeart_get_type(ptr, &alloc_id, &alloc_size);
-    if (query_status != TYPEART_OK) {
-      LOG_TRACE(" [cusan]    Querying allocation length failed on " << ptr << ". Code: " << int(query_status))
-      sizes.push_back(0);
-      continue;
-    }
-    const auto bytes_for_type = typeart_get_type_size(alloc_id);
-    const auto total_bytes    = bytes_for_type * alloc_size;
-    LOG_TRACE(" [cusan]    Querying allocation length of " << ptr << ". Code: " << int(query_status) << "  with size"
-                                                           << total_bytes)
-#endif
-    sizes.push_back(total_bytes);
+
+    sizes.push_back(size_in_bytes.value());
   }
 
   runtime.stats_recorder.inc_kernel_register_calls();

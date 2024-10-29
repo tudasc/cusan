@@ -2,19 +2,19 @@
 // RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 
 
-// CHECK-LLVM-IR: invoke i32 @cudaMemcpy(i8* {{.*}}[[mcpy_target:%[0-9a-z]+]], i8* {{.*}}[[mcpy_from:%[0-9a-z]+]],
-// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy(i8* {{.*}}[[mcpy_target]], i8* {{.*}}[[mcpy_from]],
-// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMemcpy({{i8\*|ptr}} {{.*}}[[mcpy_target:%[0-9a-z]+]], {{i8\*|ptr}} {{.*}}[[mcpy_from:%[0-9a-z]+]],
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy({{i8\*|ptr}} {{.*}}[[mcpy_target]], {{i8\*|ptr}} {{.*}}[[mcpy_from]],
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamCreate
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream 
-// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamCreate
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream 
-// CHECK-LLVM-IR: invoke i32 @cudaEventCreate
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaEventCreate
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_event
-// CHECK-LLVM-IR: invoke i32 @cudaEventRecord
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaEventRecord
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_event_record
-// CHECK-LLVM-IR: invoke i32 @cudaMemcpy(i8* {{.*}}[[mcpy2_target:%[0-9a-z]+]], i8* {{.*}}[[mcpy2_from:%[0-9a-z]+]],
-// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy(i8* {{.*}}[[mcpy2_target]], i8* {{.*}}[[mcpy2_from]],
-// CHECK-LLVM-IR: invoke i32 @cudaStreamSynchronize
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMemcpy({{i8\*|ptr}} {{.*}}[[mcpy2_target:%[0-9a-z]+]], {{i8\*|ptr}} {{.*}}[[mcpy2_from:%[0-9a-z]+]],
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy({{i8\*|ptr}} {{.*}}[[mcpy2_target]], {{i8\*|ptr}} {{.*}}[[mcpy2_from]],
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamSynchronize
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_stream
 
 // clang-format on

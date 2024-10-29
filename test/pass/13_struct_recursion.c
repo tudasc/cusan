@@ -3,13 +3,12 @@
 // RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 // clang-format on
 
-
-// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamCreate
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
-// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamCreate
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
 
-// CHECK-LLVM-IR: invoke i32 @cudaDeviceSynchronize
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaDeviceSynchronize
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_device
 
 // CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamDestroy
