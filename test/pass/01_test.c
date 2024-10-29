@@ -1,19 +1,18 @@
+// clang-format off
 // RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s
+// clang-format on
 
-// CHECK: TypeArtPass [Heap]
-// CHECK-NEXT: Malloc :   2
-
-// HECK: invoke i32 @cudaMalloc
-// HECK: invoke void @_cusan_device_alloc
-// HECK: invoke i32 @cudaMalloc
-// HECK: invoke void @_cusan_device_alloc
-// HECK: invoke i32 @cudaMemcpy
-// HECK: invoke void @_cusan_memcpy
-// HECK: invoke i32 @cudaDeviceSynchronize
-// HECK: invoke void @_cusan_sync_device
-// HECK: invoke i32 @cudaMemcpy
-// HECK: invoke void @_cusan_memcpy
-// HECK: invoke i32 @cudaDeviceReset
+// CHECK: {{(invoke|call)}} i32 @cudaMalloc
+// CHECK: {{(invoke|call)}} void @_cusan_device_alloc
+// CHECK: {{(invoke|call)}} i32 @cudaMalloc
+// CHECK: {{(invoke|call)}} void @_cusan_device_alloc
+// CHECK: {{(invoke|call)}} i32 @cudaMemcpy
+// CHECK: {{(invoke|call)}} void @_cusan_memcpy
+// CHECK: {{(invoke|call)}} i32 @cudaDeviceSynchronize
+// CHECK: {{(invoke|call)}} void @_cusan_sync_device
+// CHECK: {{(invoke|call)}} i32 @cudaMemcpy
+// CHECK: {{(invoke|call)}} void @_cusan_memcpy
+// CHECK: {{(invoke|call)}} i32 @cudaDeviceReset
 
 #include <stdio.h>
 __device__ void axpy_write(float a, float* y) {

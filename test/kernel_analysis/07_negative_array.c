@@ -6,7 +6,7 @@
 // CHECK-NOT: Handling Arg:
 // CHECK: Handling Arg:
 // CHECK-NEXT: subarg: {{.*}} ptr: 1, rw: Read
-// CHECK-NEXT: subarg: {{.*}}indices:[L, [-1, ], L, ], ptr: 1, rw: Write
+// CHECK-NEXT: subarg: {{.*}}, is_loading, gep_indices:[], ptr: 1, rw: Write
 // CHECK-NOT: Handling Arg:
 
 #include <cuda_runtime.h>

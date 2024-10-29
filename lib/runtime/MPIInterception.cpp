@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "StatsCounter.h"
-#include "TSan_External.h"
+#include "TSanInterface.h"
 #include "support/Table.h"
 
 #include <iostream>

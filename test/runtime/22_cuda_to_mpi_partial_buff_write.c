@@ -1,12 +1,11 @@
 // clang-format off
-// RUN: %wrapper-mpicxx %tsan-compile-flags -O2 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
+// RUN: %wrapper-mpicxx %clang_args %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
 // RUN: %cusan_ldpreload %tsan-options %mpi-exec -n 2 %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s --allow-empty
 
 // clang-format on
 
 // CHECK-NOT: data race
 // CHECK-NOT: [Error] sync
-
 
 #include "../support/gpu_mpi.h"
 
@@ -33,7 +32,7 @@ int main(int argc, char* argv[]) {
   const int size            = 512;
   const int threadsPerBlock = size;
   const int blocksPerGrid   = (size + threadsPerBlock - 1) / threadsPerBlock;
-  static_assert(size % 2 == 0, "Needs to be divisble by 2");
+  static_assert(size % 2 == 0, "Needs to be divisible by 2");
   const int half_size = size / 2;
 
   MPI_Init(&argc, &argv);

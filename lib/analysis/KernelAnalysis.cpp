@@ -181,104 +181,89 @@ inline AccessState state(const llvm::Attribute::AttrKind mem) {
   return AccessState::kRW;
 }
 
-struct ChildInfo {
-  llvm::Value* val;
-  llvm::SmallVector<FunctionSubArg::SubIndex> indices;
-};
-
-void collect_children(FunctionArg& arg, llvm::Value* init_val,
-                      llvm::SmallVector<FunctionSubArg::SubIndex> initial_index_stack = {},
-                      llvm::SmallSet<llvm::Function*, 8> visited_funcs                = {}) {
+void collect_subsequent_load(FunctionArg& arg, llvm::Value* value, llvm::SmallVector<int64_t> index_stack) {
   using namespace llvm;
-  llvm::SmallVector<ChildInfo, 32> work_list;
-  work_list.push_back({init_val, std::move(initial_index_stack)});
-
-  while (!work_list.empty()) {
-    // not nice making copies of the stack all the time idk
-    auto curr_info   = work_list.pop_back_val();
-    auto* value      = curr_info.val;
-    auto index_stack = curr_info.indices;
-
-    Type* value_type = value->getType();
-    if (auto* ptr_type = dyn_cast<PointerType>(value_type)) {
-      //auto* elem_type = ptr_type->getPointerElementType();
-      // if (elem_type->isStructTy() || elem_type->isPointerTy()) {
-      for (Use& value_use : value->uses()) {
-        User* value_user = value_use.getUser();
-        if (auto* call = dyn_cast<CallBase>(value_user)) {
-          Function* called = call->getCalledFunction();
-          if (visited_funcs.contains(called)) {
-            LOG_WARNING("Not handling recursive kernels right now");
-            continue;
-          }
-          if (called->isDeclaration()) {
-            LOG_WARNING("Could not determine pointer access of the "
-                        << arg.arg_pos
-                        << " Argument since its calling function outside of this cu: " << called->getName());
-            continue;
-          }
-          visited_funcs.insert(called);
-          
-          Argument* ipo_argument = called->getArg(value_use.getOperandNo());
-          {
-            const auto access_res = determinePointerAccessAttrs(ipo_argument);
-            // const FunctionSubArg sub_arg{ipo_argument, index_stack, true, state(access_res)};
-            // arg.subargs.push_back(sub_arg);
-            //  this argument should have already been looked at in the current function so if we
-            //  check it again we should merge the results to get the correct accessstate
-            auto* res = llvm::find_if(arg.subargs, [=](auto a) { return a.value.value_or(nullptr) == ipo_argument; });
-            if (res == arg.subargs.end()) {
-              res->state = mergeAccessState(res->state, state(access_res));
-            } else {
-              assert(false);
-            }
-          }
-          collect_children(arg, ipo_argument, index_stack);
-        } else if (auto* gep = dyn_cast<GetElementPtrInst>(value_user)) {
-          auto gep_indicies                   = gep->indices();
-          auto sub_index_stack                = index_stack;
-          llvm::SmallVector<int64_t> indicies = {};
-          bool all_constant                   = true;
-        
-          for (unsigned i = 0; i < gep->getNumIndices(); i++) {
-            auto* index = gep_indicies.begin() + i;
-            if (auto* index_value = dyn_cast<ConstantInt>(index->get())) {
-              indicies.push_back(index_value->getSExtValue());
-            } else {
-              LOG_WARNING("Failed to determine access pattern for argument '" << arg.arg_pos
-                                                                              << "' since it uses dynamic gep indices");
-              all_constant = false;
-              break;
-            }
-          }
-          if (all_constant) {
-            sub_index_stack.push_back(FunctionSubArg::SubIndex{std::move(indicies)});
-            work_list.push_back({gep, sub_index_stack});
-          }
-        }
+  for (User* value_user : value->users()) {
+    if (auto* load = dyn_cast<LoadInst>(value_user)) {
+      if (load->getType()->isPointerTy()) {
+        const auto res = determinePointerAccessAttrs(load);
+        const FunctionSubArg sub_arg{load, true, index_stack, true, state(res)};
+        arg.subargs.push_back(sub_arg);
       }
-      //}
-      //{
-      //  const auto res = determinePointerAccessAttrs(load);
-      //  const FunctionArg kernel_arg{load, index_stack, arg_pos, true, state(res)};
-      //  args.push_back(kernel_arg);
-      //}
-      for (User* value_user : value->users()) {
-        if (auto* load = dyn_cast<LoadInst>(value_user)) {
-          if (load->getType()->isPointerTy()) {
-            auto sub_index_stack = index_stack;
-            sub_index_stack.push_back(FunctionSubArg::SubIndex{});
-            work_list.push_back({load, sub_index_stack});
-            const auto res = determinePointerAccessAttrs(load);
-            const FunctionSubArg sub_arg{load, std::move(sub_index_stack), true, state(res)};
-            arg.subargs.push_back(sub_arg);
-          }
-        }
-      }
-
-    } else {
-      return;
     }
+  }
+}
+
+void collect_children(FunctionArg& arg, llvm::Value* value, llvm::SmallSet<llvm::Function*, 8>& visited_funcs) {
+  using namespace llvm;
+
+  Type* value_type = value->getType();
+  if (auto* ptr_type = dyn_cast<PointerType>(value_type)) {
+    // auto* elem_type = ptr_type->getPointerElementType();
+    //  if (elem_type->isStructTy() || elem_type->isPointerTy()) {
+    for (Use& value_use : value->uses()) {
+      User* value_user = value_use.getUser();
+      if (auto* call = dyn_cast<CallBase>(value_user)) {
+        Function* called = call->getCalledFunction();
+        if (visited_funcs.contains(called)) {
+          LOG_WARNING("Not handling recursive kernels right now");
+          continue;
+        }
+        if (called->isDeclaration()) {
+          LOG_WARNING("Could not determine pointer access of the "
+                      << arg.arg_pos
+                      << " Argument since its calling function outside of this cu: " << called->getName());
+          continue;
+        }
+        visited_funcs.insert(called);
+
+        Argument* ipo_argument = called->getArg(value_use.getOperandNo());
+        {
+          const auto access_res = determinePointerAccessAttrs(ipo_argument);
+          // const FunctionSubArg sub_arg{ipo_argument, index_stack, true, state(access_res)};
+          // arg.subargs.push_back(sub_arg);
+          //  this argument should have already been looked at in the current function so if we
+          //  check it again we should merge the results to get the correct accessstate
+          auto* res = llvm::find_if(arg.subargs, [=](auto a) { return a.value.value_or(nullptr) == ipo_argument; });
+          if (res == arg.subargs.end()) {
+            res->state = mergeAccessState(res->state, state(access_res));
+          } else {
+            assert(false);
+          }
+        }
+        collect_children(arg, ipo_argument, visited_funcs);
+      } else if (auto* gep = dyn_cast<GetElementPtrInst>(value_user)) {
+        auto gep_indicies                  = gep->indices();
+        llvm::SmallVector<int64_t> indices = {};
+        bool all_constant                  = true;
+
+        for (unsigned i = 0; i < gep->getNumIndices(); i++) {
+          auto* index = gep_indicies.begin() + i;
+          if (auto* index_value = dyn_cast<ConstantInt>(index->get())) {
+            indices.push_back(index_value->getSExtValue());
+          } else {
+            LOG_WARNING("Failed to determine access pattern for argument '" << arg.arg_pos
+                                                                            << "' since it uses dynamic gep indices");
+            all_constant = false;
+            break;
+          }
+        }
+        if (all_constant) {
+          // const FunctionSubArg sub_arg{value, true, indices, true, state(res)};
+          // arg.subargs.push_back(sub_arg);
+          collect_subsequent_load(arg, gep, std::move(indices));
+          // work_list.push_back({gep, sub_index_stack});
+        }
+      }
+    }
+
+    for (User* value_user : value->users()) {
+      if (dyn_cast<LoadInst>(value_user)) {
+        collect_subsequent_load(arg, value, {});
+      }
+    }
+  } else {
+    return;
   }
 }
 
@@ -289,13 +274,14 @@ void attribute_value(FunctionArg& arg) {
   Type* value_type = value->getType();
   if (value_type->isPointerTy()) {
     const auto res2 = determinePointerAccessAttrs(value);
-    const FunctionSubArg kernel_arg{value, {}, true, state(res2)};
+    const FunctionSubArg kernel_arg{value, false, {}, true, state(res2)};
     arg.is_pointer = true;
     arg.value      = value;
     arg.subargs.emplace_back(kernel_arg);
-    collect_children(arg, value);
+    llvm::SmallSet<llvm::Function*, 8> visited_funcs = {};
+    collect_children(arg, value, visited_funcs);
   } else {
-    const FunctionSubArg kernel_arg{value, {}, false, AccessState::kRW};
+    const FunctionSubArg kernel_arg{value, false, {}, false, AccessState::kRW};
     arg.subargs.emplace_back(kernel_arg);
   }
 }
@@ -358,10 +344,14 @@ std::optional<KernelModel> kernel_model_for_stub(llvm::Function* func, const Mod
       stub_name.erase(pos, prefix.length());
     }
     return stub_name;
-  }(util::try_demangle(*func));
+  }(util::try_demangle_fully(*func));
 
   const auto result = llvm::find_if(models.models, [&stub_name](const auto& model_) {
-    return llvm::StringRef(util::demangle(model_.kernel_name)).startswith(stub_name);
+#if LLVM_VERSION_MAJOR > 15
+    return llvm::StringRef(util::try_demangle_fully(model_.kernel_name)).starts_with(stub_name);
+#else
+    return llvm::StringRef(util::try_demangle_fully(model_.kernel_name)).startswith(stub_name);
+#endif
   });
 
   if (result != std::end(models.models)) {

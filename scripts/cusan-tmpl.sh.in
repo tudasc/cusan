@@ -7,7 +7,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 function parse_cuda_cmd_line() {
-  typeart_non_cuda_args=""
+  cusan_non_cuda_args=""
   found_cuda=0
   cuda_code_arch="sm_50"
   cuda_compute_arch="compute_50"
@@ -19,7 +19,7 @@ function parse_cuda_cmd_line() {
       if [ "$2" == "cuda" ]; then
         found_cuda=1
       else
-        typeart_non_cuda_args="$typeart_non_cuda_args $1 $2"
+        cusan_non_cuda_args="$cusan_non_cuda_args $1 $2"
       fi
       shift 2
       ;;
@@ -33,13 +33,13 @@ function parse_cuda_cmd_line() {
       shift 1
       ;;
     *) # preserve other arguments
-      typeart_non_cuda_args="$typeart_non_cuda_args $1"
+      cusan_non_cuda_args="$cusan_non_cuda_args $1"
       shift
       ;;
     esac
   done
   # set other positional arguments in their proper place
-  set -- "typeart_non_cuda_args"
+  set -- "cusan_non_cuda_args"
 }
 
 function cusan_parse_cmd_line() {
@@ -101,6 +101,14 @@ function cusan_parse_cmd_line() {
       show_cuda_host_ir=1
       shift
     ;;
+    --cusan-kernel-data=*)
+      if [ "@CUSAN_NEW_PM_REQUIRED@" == 1 ]; then
+        export CUSAN_KERNEL_DATA_FILE="${1##--cusan-kernel-data=}"
+      else
+        more_args="$more_args $1"    
+      fi
+      shift
+    ;;
     *) # preserve other arguments
       more_args="$more_args $1"
       shift
@@ -128,8 +136,6 @@ function cusan_parse_cmd_line() {
 }
 
 function cusan_global_init() {
-  typeart_global_init
-
   local -r cusan_bin_dir="@CUSAN_BINARY_DIR@"
   local -r cusan_lib_dir="@CUSAN_RT_DIR@"
   local -r cusan_include_dir="@CUSAN_INCLUDE_DIRS@"
@@ -140,32 +146,15 @@ function cusan_global_init() {
                    -l$<TARGET_FILE_BASE_NAME:cusan::Runtime>"
 
   readonly cusan_includes="${cusan_include_dir}"
-  readonly cusan_plugin="-load "${cusan_pass}" -cusan"
+
+  if [ "@CUSAN_NEW_PM_REQUIRED@" == 1 ]; then
+    readonly cusan_plugin="-load-pass-plugin "${cusan_pass}" -passes=cusan"
+  else
+    readonly cusan_plugin="-load "${cusan_pass}" -cusan"
+  fi
+  
   readonly cusan_cpu_mode=""
   readonly cusan_gpu_mode=""
-}
-
-function typeart_global_init() {
-  local -r typeart_bin_dir="@TYPEART_BINARY_DIR@"
-  local -r typeart_lib_dir="@TYPEART_RT_DIR@"
-  local -r typeart_include_dir="@TYPEART_INCLUDE_DIRS@"
-  local -r typeart_pass="@TYPEART_PASS_DIR@/$<TARGET_FILE_NAME:typeart::TransformPass>"
-  readonly typeart_interceptor="@TYPEART_MPI_INTERCEPT_DIR@/@TYPEART_MPI_TOOL@"
-
-
-  readonly opt_tool="@TYPEART_OPT@"
-  readonly llc_tool="@TYPEART_LLC@"
-
-  readonly typeart_includes="${typeart_include_dir}"
-  readonly typeart_ldflags="-L${typeart_lib_dir}/ \
-                   -Wl,-rpath,${typeart_lib_dir}/ \
-                   -l$<TARGET_FILE_BASE_NAME:typeart::Runtime>"
-
-  # shellcheck disable=SC2027
-  readonly typeart_plugin="-load "${typeart_pass}" -typeart"
-  readonly typeart_stack_mode_args="-typeart-heap=false -typeart-stack -typeart-stats"
-  readonly typeart_heap_mode_args="-typeart-heap=true -typeart-stats"
-  readonly typeart_combined_mode_args="${typeart_heap_mode_args} -typeart-stack"
 }
 
 function cusan_toolchain_init() {
@@ -186,26 +175,34 @@ function cusan_toolchain_init() {
     ;;
   esac
 
-  readonly cusan_san_flags="@CUSAN_SAN_FLAGS@ -fsanitize=thread"
+  readonly opt_tool="@CUSAN_OPT@"
+  readonly llc_tool="@CUSAN_LLC_EXEC@"
+  readonly cusan_san_flags="-fsanitize=thread"
 }
 
 function cusan_make_ir() {
   local cuda_add_flag="$1"
-  $compiler ${cuda_add_flag} ${omp_flags} ${typeart_includes} ${cusan_include_dir} ${cusan_san_flags} \
-   -O0 -Xclang -disable-O0-optnone -g ${compile_flags} -S -emit-llvm "${source_file}" -o - |
-   $opt_tool -mem2reg -S
-    # -O1 -Xclang -disable-llvm-passes -g ${compile_flags} -S -emit-llvm "${source_file}" -o -
-  
+
+  if [ "@CUSAN_NEW_PM_REQUIRED@" == 1 ]; then
+    $compiler ${cuda_add_flag} ${omp_flags} ${cusan_include_dir} ${cusan_san_flags} \
+      -O0 -Xclang -disable-O0-optnone -g ${compile_flags} -D__STRICT_ANSI__ -S -emit-llvm "${source_file}" -o - |
+      $opt_tool -passes=mem2reg -S
+  else
+    $compiler ${cuda_add_flag} ${omp_flags} ${cusan_include_dir} ${cusan_san_flags} \
+      -O0 -Xclang -disable-O0-optnone -g ${compile_flags} -S -emit-llvm "${source_file}" -o - |
+      $opt_tool -mem2reg -S
+  fi
+
 }
 
 function cusan_source_to_llvm() {
   local cuda_add_flag=""
-  if [ $found_cuda == 1 ]; then
+  if [ "$found_cuda" == 1 ]; then
     cuda_add_flag=""
     cuda_add_flag+=" -x cuda"
-    if [ $show_cuda_ir == 1 ]; then
+    if [ "$show_cuda_ir" == 1 ]; then
       cuda_add_flag+=" --cuda-device-only --cuda-gpu-arch=${cuda_code_arch}"
-    elif [ $show_cuda_host_ir == 1 ]; then
+    elif [ "$show_cuda_host_ir" == 1 ]; then
       cuda_add_flag+=" --cuda-host-only"
       # generate kernel data, workaround
       cusan_device_pass no_out
@@ -227,32 +224,26 @@ function cusan_device_pass() {
 
 function cusan_apply_pass() {
   cusan_source_to_llvm |
-    $opt_tool ${typeart_plugin} ${typeart_heap_mode_args} ${ta_more_args} -S |
-    $opt_tool ${cusan_plugin} ${more_args} -S |
-    # $opt_tool  -passes="tsan-module,tsan" -S |
-    $opt_tool ${typeart_plugin} ${typeart_stack_mode_args} ${ta_more_args} -S 
+    $opt_tool ${cusan_plugin} ${more_args} -S
 }
 
 function cusan_apply_pass_optim() {
   cusan_source_to_llvm |
-    $opt_tool ${typeart_plugin} ${typeart_heap_mode_args} ${ta_more_args} |
     $opt_tool ${cusan_plugin} ${more_args} |
-    # $opt_tool  -passes="tsan-module,tsan" -S |
-    $opt_tool ${optimize} -S |
-    $opt_tool ${typeart_plugin} ${typeart_stack_mode_args} ${ta_more_args} -S
+    $opt_tool ${optimize} -S
 
 }
 
 function cusan_compile() {
   local llc_flags="--filetype=obj"
   if [ "$optimize" == "-O0" ]; then
-    if [ $show_cuda_ir == 0 ] && [ $show_cuda_host_ir == 0 ]; then
+    if [ "$show_cuda_ir" == 0 ] && [ $show_cuda_host_ir == 0 ]; then
       cusan_apply_pass | $llc_tool -x=ir ${llc_flags} -o "${object_file}"
     else
       cusan_apply_pass
     fi
   else
-    if [ $show_cuda_ir == 0 ] && [ $show_cuda_host_ir == 0 ]; then
+    if [ "$show_cuda_ir" == 0 ] && [ $show_cuda_host_ir == 0 ]; then
       cusan_apply_pass_optim | $llc_tool -x=ir ${llc_flags} -o "${object_file}"
     else
       cusan_apply_pass_optim
@@ -260,30 +251,17 @@ function cusan_compile() {
   fi
 }
 
-function cusan_main_link() {
-  $compiler ${cusan_san_flags} ${cusan_ldflags} "${object_file}" -o "${exe_file}"
-}
-
-function cusan_execute() {
-  export TSAN_OPTIONS='ignore_noninstrumented_modules=1'
-  echo -e Executing with runtime lib
-  LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${cusan_lib_dir}" "${exe_file}"
-}
-
 function parse_commands() {
   parse_cuda_cmd_line "$@"
-  cusan_parse_cmd_line ${typeart_non_cuda_args}
+  cusan_parse_cmd_line ${cusan_non_cuda_args}
 }
 
 function cusan_main_in() {
+  set +x
   parse_commands "$@"
   cusan_global_init
   cusan_toolchain_init
   cusan_compile
-  if [ @CUSAN_RUN_SCRIPT@ == 1 ]; then
-    cusan_main_link
-    cusan_execute
-  fi
 }
 
 cusan_main_in "$@"

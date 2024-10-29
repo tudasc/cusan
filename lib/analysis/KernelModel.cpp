@@ -44,17 +44,6 @@ bool ModelHandler::insert(const cusan::KernelModel& model) {
   return false;
 }
 
-llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const FunctionSubArg::SubIndex& indx) {
-  if (indx.is_load) {
-    return os << "L";
-  }
-  os << "[";
-  for (auto a : indx.gep_indicies) {
-    os << a << ", ";
-  }
-  return os << "]";
-}
-
 llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const FunctionSubArg& arg) {
   os << "[";
   if (arg.value.has_value()) {
@@ -62,14 +51,17 @@ llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const FunctionSubArg& arg) 
   } else {
     os << "<null>";
   }
-  if (!arg.indices.empty()) {
-    os << ", indices:[";
-    for (const auto& index : arg.indices) {
+  if (arg.does_load) {
+    os << ", is_loading";
+  }
+  if (!arg.gep_indicies.empty()) {
+    os << ", gep_indices:[";
+    for (const auto& index : arg.gep_indicies) {
       os << index << ", ";
     }
     os << "]";
   } else {
-    os << ", indices:[]";
+    os << ", gep_indices:[]";
   }
   os << ", ptr: " << static_cast<int>(arg.is_pointer) << ", rw: " << arg.state << "]";
   return os;

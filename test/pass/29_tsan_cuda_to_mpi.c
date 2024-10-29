@@ -4,11 +4,10 @@
 
 // clang-format on
 
-
-// CHECK-LLVM-IR: invoke i32 @cudaMemcpy
-// CHECK-LLVM-IR: invoke void @_cusan_memcpy
-// CHECK-LLVM-IR: invoke i32 @cudaFree
-// CHECK-LLVM-IR: invoke void @_cusan_device_free
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMemcpy
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_memcpy
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaFree
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_device_free
 
 #include "../support/gpu_mpi.h"
 

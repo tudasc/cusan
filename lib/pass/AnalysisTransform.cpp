@@ -1,6 +1,203 @@
-#include <AnalysisTransform.h>
+#include "AnalysisTransform.h"
+
+#include "support/Logger.h"
+#include "support/Util.h"
+
+namespace cusan {
+auto get_void_ptr_type(IRBuilder<>& irb) {
+#if LLVM_VERSION_MAJOR >= 15
+  return irb.getPtrTy();
+#else
+  return irb.getInt8PtrTy();
+#endif
+}
+
+namespace analysis {
+namespace helper {
+
+bool does_name_match(const std::string& model_kernel_name, llvm::CallBase& cb) {
+  assert(cb.getFunction() != nullptr && "Callbase requires function.");
+  const auto stub_name      = util::try_demangle_fully(*cb.getFunction());
+  const auto searching_name = util::try_demangle_fully(model_kernel_name);
+
+  StringRef searching_without_type{searching_name};
+  if (StringRef{stub_name}.contains("lambda")) {
+    LOG_DEBUG("Detected lambda function in stub name " << stub_name)
+    // if we got a lambda it has a return type included that we want to shave off
+    const auto first_space = searching_name.find(' ');
+    searching_without_type = llvm::StringRef(searching_name).substr(first_space + 1);
+  }
+
+  LOG_DEBUG("Check stub \"" << stub_name << "\" ends with \"" << searching_name << "\" or \"" << searching_without_type
+                            << "\"")
+  return helper::ends_with_any_of(stub_name, searching_name, searching_without_type);
+}
+}  // namespace helper
+
+std::optional<CudaKernelInvokeCollector::KernelInvokeData> CudaKernelInvokeCollector::match(llvm::CallBase& cb,
+                                                                                            Function& callee) const {
+  if (callee.getName() == "cudaLaunchKernel" && helper::does_name_match(model.kernel_name, cb)) {
+    // && ends_with(stub_name, searching_name)
+    // errs() << "Func:" << stub_name << " " << searching_name << "  == " << (stub_name == searching_name) << "\n";
+    // errs() << cb.getFunction()->getName() << "  " << model.kernel_name << "\n" << cb << "\n";
+
+    auto* cu_stream_handle      = std::prev(cb.arg_end())->get();
+    auto* void_kernel_arg_array = std::prev(cb.arg_end(), 3)->get();
+    auto kernel_args            = extract_kernel_args_for(void_kernel_arg_array);
+
+    return KernelInvokeData{kernel_args, void_kernel_arg_array, cu_stream_handle};
+  }
+  return std::nullopt;
+}
+
+llvm::SmallVector<KernelArgInfo, 4> CudaKernelInvokeCollector::extract_kernel_args_for(
+    llvm::Value* void_kernel_arg_array) const {
+  unsigned index = 0;
+
+  llvm::SmallVector<Value*, 4> real_args;
+
+  for (auto* array_user : void_kernel_arg_array->users()) {
+    if (auto* gep = dyn_cast<GetElementPtrInst>(array_user)) {
+      for (auto* gep_user : gep->users()) {
+        if (auto* store = dyn_cast<StoreInst>(gep_user)) {
+          if (!(index < model.args.size())) {
+            LOG_FATAL("In: " << *store->getParent()->getParent())
+            LOG_FATAL("Out of bounds for model args: " << index << " vs. " << model.args.size());
+            assert(false && "Encountered out of bounds access");
+          }
+          if (auto* cast = dyn_cast<BitCastInst>(store->getValueOperand())) {
+            real_args.push_back(*cast->operand_values().begin());
+          } else {
+            real_args.push_back(*store->operand_values().begin());
+          }
+          index++;
+        }
+      }
+    }
+  }
+
+  llvm::SmallVector<KernelArgInfo, 4> result = model.args;
+  for (auto& res : result) {
+    Value* val = real_args[real_args.size() - 1 - res.arg_pos];
+    // because of ABI? clang might convert struct argument to a (byval)pointer
+    // but the actual cuda argument is just a value. So we double check that it actually allocates a pointer
+    bool real_ptr = false;
+    if (auto* as_alloca = dyn_cast<AllocaInst>(val)) {
+      real_ptr = res.is_pointer && as_alloca->getAllocatedType()->isPointerTy();
+    }
+
+    // not fake pointer from clang so load it before getting subargs
+    for (auto& sub_arg : res.subargs) {
+      if (real_ptr) {
+        sub_arg.does_load = true;
+        sub_arg.gep_indicies.clear();
+      }
+      sub_arg.value = val;
+    }
+    res.value = val;
+  }
+  return result;
+}
+}  // namespace analysis
+}  // namespace cusan
 
 namespace cusan::transform {
+
+bool KernelInvokeTransformer::transform(const analysis::CudaKernelInvokeCollector::Data& data, IRBuilder<>& irb) const {
+  using namespace llvm;
+  return generate_compound_cb(data, irb);
+}
+
+short KernelInvokeTransformer::access_cast(AccessState access, bool is_ptr) {
+  auto value = static_cast<short>(access);
+  value <<= 1;
+  if (is_ptr) {
+    value |= 1;
+  }
+  return value;
+}
+
+llvm::Value* KernelInvokeTransformer::get_cu_stream_ptr(const analysis::CudaKernelInvokeCollector::Data& data,
+                                                        IRBuilder<>& irb) {
+  auto* cu_stream = data.cu_stream;
+  assert(cu_stream != nullptr && "Require cuda stream!");
+  auto* cu_stream_void_ptr = irb.CreateBitOrPointerCast(cu_stream, get_void_ptr_type(irb));
+  return cu_stream_void_ptr;
+}
+
+bool KernelInvokeTransformer::generate_compound_cb(const analysis::CudaKernelInvokeCollector::Data& data,
+                                                   IRBuilder<>& irb) const {
+  const bool should_transform =
+      llvm::count_if(data.args, [&](const auto& elem) {
+        return llvm::count_if(elem.subargs, [&](const auto& sub_elem) { return sub_elem.is_pointer; }) > 0;
+      }) > 0;
+
+  uint32_t n_subargs = 0;
+  for (const auto& arg : data.args) {
+    n_subargs += arg.subargs.size();
+  }
+
+  if (!should_transform) {
+    return false;
+  }
+
+  auto target_callback = decls_->cusan_register_access;
+
+  auto* i16_ty      = Type::getInt16Ty(irb.getContext());
+  auto* i32_ty      = Type::getInt32Ty(irb.getContext());
+  auto* void_ptr_ty = get_void_ptr_type(irb);
+
+  auto* cu_stream_void_ptr = get_cu_stream_ptr(data, irb);
+  auto* arg_size           = irb.getInt32(n_subargs);
+  auto* arg_access_array   = irb.CreateAlloca(i16_ty, arg_size);
+  auto* arg_value_array    = irb.CreateAlloca(void_ptr_ty, arg_size);
+
+  size_t arg_array_index = 0;
+  for (const auto& arg : data.args) {
+    LOG_DEBUG("Handling Arg: " << arg)
+    for (const auto& sub_arg : arg.subargs) {
+      LOG_DEBUG("   subarg: " << sub_arg)
+      const auto access = access_cast(sub_arg.state, sub_arg.is_pointer);
+      Value* idx        = ConstantInt::get(i32_ty, arg_array_index);
+      Value* acc        = ConstantInt::get(i16_ty, access);
+      auto* gep_acc     = irb.CreateGEP(i16_ty, arg_access_array, idx);
+      irb.CreateStore(acc, gep_acc);
+      // only if it is a pointer store the actual pointer in the value array
+      if (sub_arg.is_pointer) {
+        assert(arg.value.has_value());
+        auto* value_ptr = arg.value.value();
+
+        if (auto* alloca_value = dyn_cast_or_null<AllocaInst>(value_ptr)) {
+          auto* subtype = alloca_value->getAllocatedType();
+
+          if (!sub_arg.gep_indicies.empty()) {
+            llvm::SmallVector<Value*> values{
+                llvm::map_range(sub_arg.gep_indicies, [&irb](auto index) { return (Value*)irb.getInt32(index); })};
+            value_ptr = irb.CreateGEP(subtype, value_ptr, values);
+#if LLVM_VERSION_MAJOR >= 15
+            subtype = void_ptr_ty;
+#else
+            subtype = value_ptr->getType()->getPointerElementType();
+#endif
+          }
+
+          if (sub_arg.does_load) {
+            value_ptr = irb.CreateLoad(subtype, value_ptr);
+          }
+        }
+
+        auto* voided_ptr    = irb.CreatePointerCast(value_ptr, void_ptr_ty);
+        auto* gep_val_array = irb.CreateGEP(void_ptr_ty, arg_value_array, idx);
+        irb.CreateStore(voided_ptr, gep_val_array);
+        arg_array_index += 1;
+      }
+    }
+  }
+
+  Value* args_cusan_register[] = {arg_value_array, arg_access_array, arg_size, cu_stream_void_ptr};
+  irb.CreateCall(target_callback.f, args_cusan_register);
+  return true;
+}
 
 // DeviceSyncInstrumenter
 

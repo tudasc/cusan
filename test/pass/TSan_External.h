@@ -25,16 +25,16 @@ typedef unsigned long long a64;
 #ifdef MUST_DEBUG
 // Print an error message *once* if an annotation function is used that is not overwritten by the
 // TSan runtime
-#define FALLBACK_PRINT(func_name)                                                  \
-  {                                                                                \
-    static bool once = false;                                                      \
-    if (!once) {                                                                   \
-      printf(                                                                      \
-          "[MUST-ERROR] %s fallback called, check your TSan runtime and the call " \
-          "signature\n",                                                           \
-          func_name);                                                              \
-      once = true;                                                                 \
-    }                                                                              \
+#define FALLBACK_PRINT(func_name)                                                              \
+  {                                                                                            \
+    static bool once = false;                                                                  \
+    if (!once) {                                                                               \
+      printf(                                                                                  \
+          "[MUST-ERROR] %s fallback called, check your TSan runtime and the {{(call|invoke)}}" \
+          "signature\n",                                                                       \
+          func_name);                                                                          \
+      once = true;                                                                             \
+    }                                                                                          \
   }
 #else
 #define FALLBACK_PRINT(func_name)

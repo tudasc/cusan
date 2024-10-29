@@ -61,9 +61,9 @@ function(cusan_add_lit_testsuite target comment)
 endfunction()
 
 function(cusan_add_lit_target)
-  cmake_parse_arguments(ARG "" "" "SUITES" ${ARGN})
+  cmake_parse_arguments(ARG "" "" "SUITES;WORKERS" ${ARGN})
 
-  foreach(suite IN LISTS ARG_SUITES)
+  foreach(suite num_workers IN ZIP_LISTS ARG_SUITES ARG_WORKERS)
     if("${suite}" STREQUAL "all")
       set(SUITE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
       set(TARGET_NAME check-cusan)
@@ -72,7 +72,7 @@ function(cusan_add_lit_target)
       set(TARGET_NAME check-cusan-${suite})
     endif()
 
-    if(NOT EXISTS ${SUITE_PATH})
+    if(NOT EXISTS ${SUITE_PATH} AND NOT ${suite} STREQUAL "staging")
       message(WARNING "Could not find suitable lit test target at ${SUITE_PATH}")
       continue()
     endif()
@@ -80,7 +80,7 @@ function(cusan_add_lit_target)
     cusan_add_lit_testsuite(${TARGET_NAME}
       "Running the lit suite cusan::${suite}"
       ${SUITE_PATH}
-      ARGS -v -j 1
+      ARGS -v -j ${num_workers}
       PARAMS cusan_site_config=${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg
       DEPENDS ${CUSAN_TEST_DEPENDS}
     )
@@ -104,9 +104,24 @@ set(CUSAN_SUITES
   runtime
   pass
   kernel_analysis
+  staging
 )
 
-cusan_add_lit_target(SUITES ${CUSAN_SUITES})
+include(ProcessorCount)
+ProcessorCount(NUM_CPU)
+if(NUM_CPU EQUAL 0)
+  set(NUM_CPU 1)
+endif()
+
+set(CUSAN_SUITES_WORKERS
+  1
+  1
+  ${NUM_CPU}
+  ${NUM_CPU}
+  1
+)
+
+cusan_add_lit_target(SUITES ${CUSAN_SUITES} WORKERS ${CUSAN_SUITES_WORKERS})
 
 add_test(
   NAME cusan-lit-suite

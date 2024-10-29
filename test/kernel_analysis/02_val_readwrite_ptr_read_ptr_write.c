@@ -1,4 +1,5 @@
-// RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s
+// RUN: %apply  %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | \
+// RUN: %filecheck %s
 
 // CHECK-NOT: Handling Arg:
 // CHECK: Handling Arg:
@@ -8,7 +9,6 @@
 // CHECK-NEXT: Handling Arg:
 // CHECK-NEXT: subarg: {{.*}} ptr: 1, rw: ReadWrite
 // CHECK-NOT: Handling Arg:
-
 
 #include <stdio.h>
 __device__ void axpy_write(float a, float* y) {

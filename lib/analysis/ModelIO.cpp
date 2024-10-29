@@ -69,23 +69,14 @@ struct llvm::yaml::MappingTraits<cusan::FunctionSubArg> {
     if (!io.outputting()) {
       info.value = std::nullopt;
     }
-    io.mapRequired("indices", info.indices);
+    io.mapRequired("does_load", info.does_load);
+    io.mapRequired("gep_indicies", info.gep_indicies);
     io.mapRequired("access", info.state);
     io.mapRequired("pointer", info.is_pointer);
   }
 };
 
 LLVM_YAML_IS_SEQUENCE_VECTOR(cusan::FunctionSubArg)
-
-template <>
-struct llvm::yaml::MappingTraits<cusan::FunctionSubArg::SubIndex> {
-  static void mapping(IO& io, cusan::FunctionSubArg::SubIndex& info) {
-    io.mapRequired("gep_indicies", info.gep_indicies);
-    io.mapRequired("is_load", info.is_load);
-  }
-};
-
-LLVM_YAML_IS_SEQUENCE_VECTOR(cusan::FunctionSubArg::SubIndex)
 
 template <>
 struct llvm::yaml::MappingTraits<cusan::KernelModel> {

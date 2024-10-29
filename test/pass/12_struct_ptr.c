@@ -3,22 +3,22 @@
 
 
 
-// CHECK-LLVM-IR: @main(i32 noundef %0, i8** noundef %1)
-// CHECK-LLVM-IR: invoke i32 @cudaMalloc
-// CHECK-LLVM-IR: call void @_cusan_device_alloc
-// CHECK-LLVM-IR: invoke i32 @cudaMalloc
-// CHECK-LLVM-IR: call void @_cusan_device_alloc
-// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
+// CHECK-LLVM-IR: @main(i32 noundef %0, {{i8\*\*|ptr}} noundef %1)
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMalloc
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_device_alloc
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMalloc
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_device_alloc
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamCreate
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
-// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamCreate
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
 
-// CHECK-LLVM-IR: invoke i32 @cudaStreamDestroy
-// CHECK-LLVM-IR: invoke i32 @cudaStreamDestroy
-// CHECK-LLVM-IR: invoke i32 @cudaFree({{.*}}[[free_ptr1:%[0-9a-z]+]])
-// CHECK-LLVM-IR: call void @_cusan_device_free({{.*}}[[free_ptr1]])
-// CHECK-LLVM-IR: invoke i32 @cudaFree({{.*}}[[free_ptr2:%[0-9a-z]+]])
-// CHECK-LLVM-IR: call void @_cusan_device_free({{.*}}[[free_ptr2]])
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamDestroy
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamDestroy
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaFree({{.*}}[[free_ptr1:%[0-9a-z]+]])
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_device_free({{.*}}[[free_ptr1]])
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaFree({{.*}}[[free_ptr2:%[0-9a-z]+]])
+// CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_device_free({{.*}}[[free_ptr2]])
 
 
 #include "../support/gpu_mpi.h"

@@ -4,14 +4,11 @@
 
 // clang-format on
 
-
-// CHECK-LLVM-IR: invoke i32 @cudaDeviceSynchronize
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaDeviceSynchronize
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_device
-// CHECK-LLVM-IR: invoke i32 @cudaMemcpy(i8* {{.*}}[[target:%[0-9a-z]+]], i8* {{.*}}[[from:%[0-9a-z]+]],
-// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy(i8* {{.*}}[[target]], i8* {{.*}}[[from]],
-
-// FLAKYPASS: *
-// ALLOW_RETRIES: 5
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMemcpy({{i8\*|ptr}} {{.*}}[[target:%[0-9a-z]+]], {{i8\*|ptr}}
+// {{.*}}[[from:%[0-9a-z]+]], CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy({{i8\*|ptr}} {{.*}}[[target]],
+// {{i8\*|ptr}} {{.*}}[[from]],
 
 #include "../support/gpu_mpi.h"
 
