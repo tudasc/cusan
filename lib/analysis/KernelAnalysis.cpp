@@ -289,18 +289,6 @@ void attribute_value(FunctionArg& arg) {
 std::optional<KernelModel> info_with_attributor(llvm::Function* kernel) {
   using namespace llvm;
 
-  auto* module = kernel->getParent();
-  AnalysisGetter ag;
-  SetVector<Function*> functions;
-  for (auto& module_f : module->functions()) {
-    functions.insert(&module_f);
-  }
-  CallGraphUpdater cg_updater;
-  BumpPtrAllocator allocator;
-  InformationCache info_cache(*module, ag, allocator, /* CGSCC */ nullptr);
-
-  Attributor attrib(functions, info_cache, cg_updater);
-
   LOG_DEBUG("Attributing " << kernel->getName() << "\n" << *kernel << "\n")
 
   llvm::SmallVector<FunctionArg, 4> args{};
