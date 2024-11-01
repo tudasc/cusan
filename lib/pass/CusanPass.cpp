@@ -28,6 +28,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
+#include "llvm/Transforms/Utils/Mem2Reg.h"
 
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/IR/IRBuilder.h>
@@ -58,7 +59,7 @@ class LegacyCusanPass : public llvm::ModulePass {
  public:
   static char ID;  // NOLINT
 
-  LegacyCusanPass() : ModulePass(ID) {};
+  LegacyCusanPass() : ModulePass(ID){};
 
   bool runOnModule(llvm::Module& module) override;
 
@@ -70,9 +71,14 @@ bool LegacyCusanPass::runOnModule(llvm::Module& module) {
   return modified;
 }
 
-llvm::PreservedAnalyses CusanPass::run(llvm::Module& module, llvm::ModuleAnalysisManager&) {
+llvm::PreservedAnalyses CusanPass::run(llvm::Module& module, llvm::ModuleAnalysisManager& AM) {
+  ModulePassManager MPM;             
+  MPM.addPass(createModuleToFunctionPassAdaptor(llvm::PromotePass()));
+  auto mem2reg_res = MPM.run(module, AM);
+
   const auto changed = runOnModule(module);
-  return changed ? llvm::PreservedAnalyses::none() : llvm::PreservedAnalyses::all();
+
+  return changed ?  llvm::PreservedAnalyses::none() : mem2reg_res;
 }
 
 bool CusanPass::runOnModule(llvm::Module& module) {
@@ -184,14 +190,17 @@ bool CusanPass::runOnFunc(llvm::Function& function) {
 //.....................
 llvm::PassPluginLibraryInfo getCusanPassPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, "cusan", LLVM_VERSION_STRING, [](PassBuilder& pass_builder) {
-            pass_builder.registerPipelineParsingCallback(
-                [](StringRef name, ModulePassManager& module_pm, ArrayRef<PassBuilder::PipelineElement>) {
-                  if (name == "cusan") {
-                    module_pm.addPass(cusan::CusanPass());
-                    return true;
-                  }
-                  return false;
-                });
+            pass_builder.registerPipelineStartEPCallback(
+                [](auto& MPM, OptimizationLevel) { 
+                  MPM.addPass(cusan::CusanPass()); });
+            // pass_builder.registerPipelineParsingCallback(
+            //     [](StringRef name, ModulePassManager& module_pm, ArrayRef<PassBuilder::PipelineElement>) {
+            //       if (name == "cusan") {
+            //         module_pm.addPass(cusan::CusanPass());
+            //         return true;
+            //       }
+            //       return false;
+            //     });
           }};
 }
 

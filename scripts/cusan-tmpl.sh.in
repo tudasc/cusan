@@ -148,9 +148,9 @@ function cusan_global_init() {
   readonly cusan_includes="${cusan_include_dir}"
 
   if [ "@CUSAN_NEW_PM_REQUIRED@" == 1 ]; then
-    readonly cusan_plugin="-load-pass-plugin "${cusan_pass}" -passes=cusan"
+    readonly cusan_plugin="-load-pass-plugin "${cusan_pass}" -O0"
   else
-    readonly cusan_plugin="-load "${cusan_pass}" -cusan"
+    readonly cusan_plugin="-load "${cusan_pass}" -O0"
   fi
   
   readonly cusan_cpu_mode=""
@@ -185,12 +185,10 @@ function cusan_make_ir() {
 
   if [ "@CUSAN_NEW_PM_REQUIRED@" == 1 ]; then
     $compiler ${cuda_add_flag} ${omp_flags} ${cusan_include_dir} ${cusan_san_flags} \
-      -O0 -Xclang -disable-O0-optnone -g ${compile_flags} -D__STRICT_ANSI__ -S -emit-llvm "${source_file}" -o - |
-      $opt_tool -passes=mem2reg -S
+      -O0 -Xclang -disable-O0-optnone -g ${compile_flags} -D__STRICT_ANSI__ -S -emit-llvm "${source_file}" -o - 
   else
     $compiler ${cuda_add_flag} ${omp_flags} ${cusan_include_dir} ${cusan_san_flags} \
-      -O0 -Xclang -disable-O0-optnone -g ${compile_flags} -S -emit-llvm "${source_file}" -o - |
-      $opt_tool -mem2reg -S
+      -O0 -Xclang -disable-O0-optnone -g ${compile_flags} -S -emit-llvm "${source_file}" -o - 
   fi
 
 }
