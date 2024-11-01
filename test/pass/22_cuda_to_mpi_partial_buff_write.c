@@ -1,10 +1,21 @@
 // clang-format off
-// RUN: %wrapper-mpicxx %tsan-compile-flags -O2 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
-// RUN: %cusan_ldpreload %tsan-options %mpi-exec -n 2 %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s --allow-empty
+
+// RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 // clang-format on
 
-// CHECK-NOT: data race
-// CHECK-NOT: [Error] sync
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamCreate
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamSynchronize
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_stream
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamSynchronize
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_stream
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaMemcpyAsync
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy_async
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamSynchronize
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_stream
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamDestroy
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaFree
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_device_free
 
 #include "../support/gpu_mpi.h"
 
@@ -31,7 +42,7 @@ int main(int argc, char* argv[]) {
   const int size            = 512;
   const int threadsPerBlock = size;
   const int blocksPerGrid   = (size + threadsPerBlock - 1) / threadsPerBlock;
-  static_assert(size % 2 == 0, "Needs to be divisble by 2");
+  static_assert(size % 2 == 0, "Needs to be divisible by 2");
   const int half_size = size / 2;
 
   MPI_Init(&argc, &argv);

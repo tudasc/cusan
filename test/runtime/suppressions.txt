@@ -1,6 +1,7 @@
 called_from_lib:libmpi_cxx*
 called_from_lib:libmpi.so*
 called_from_lib:libcuda.so*
+called_from_lib:libtypeartRuntime.so*
 
 # Probably not required, from previous experiments
 #called_from_lib:libucx*
@@ -26,4 +27,3 @@ called_from_lib:libopen-pal.so.40*
 called_from_lib:libopen-rte.so.40*
 called_from_lib:ld-linux-x86-64.so*
 called_from_lib:libmlx5-rdma*
-called_from_lib:libnvidia-ml.so.1

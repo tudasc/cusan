@@ -2,13 +2,18 @@ function(configure_cusan_script input output)
   cmake_parse_arguments(
     ARG "" "" "INSTALL_MODE;COMPILER;WITH_FILTER;APPLY_MODE" ${ARGN}
   )
-  set(TYPEART_SAN_FLAGS "")
+
+  set(CUSAN_BINARY_DIR ${cusan_BINARY_DIR})
 
   set(TYPEART_PROJECT_DIR ${typeart_SOURCE_DIR})
   set(TYPEART_BIN_DIR ${typeart_BINARY_DIR})
   set(TYPEART_SCRIPT_DIR ${TYPEART_PROJECT_DIR}/scripts)
 
   if(ARG_INSTALL_MODE)
+    set(CUSAN_RT_DIR ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})
+    set(CUSAN_INCLUDE_DIRS "-I${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}")
+    set(CUSAN_RELOCATABLE 1)
+
     set(TYPEART_INCLUDE_DIRS
         "-I${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}"
     )
@@ -18,18 +23,21 @@ function(configure_cusan_script input output)
         ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}
     )
     set(TYPEART_BINARY_DIR -I${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR})
-    set(TYPEART_RELOCATABLE 1)
   else()
+    set(CUSAN_INCLUDE_DIRS "-I${PROJECT_SOURCE_DIR}/lib/runtime")
+    set(CUSAN_RELOCATABLE 0)
+
     set(TYPEART_INCLUDE_DIRS
         "-I${TYPEART_PROJECT_DIR}/lib/typelib -I${TYPEART_PROJECT_DIR}/lib/runtime -I${TYPEART_PROJECT_DIR}/lib/passes/typegen"
     )
-    if(LIBRARY_OUTPUT_PATH)
-      set(TYPEART_MPI_INTERCEPT_DIR ${LIBRARY_OUTPUT_PATH})
+    if(LIBRARY_OUTPUT_PATH)   
       set(TYPEART_RT_DIR ${LIBRARY_OUTPUT_PATH})
       set(TYPEART_PASS_DIR ${LIBRARY_OUTPUT_PATH})
       set(TYPEART_ANALYSIS_PASS_DIR ${LIBRARY_OUTPUT_PATH})
+
+      set(CUSAN_RT_DIR ${LIBRARY_OUTPUT_PATH})
+      set(CUSAN_PASS_DIR ${LIBRARY_OUTPUT_PATH})
     else()
-      set(TYPEART_MPI_INTERCEPT_DIR ${TYPEART_BIN_DIR}/lib/mpi_interceptor)
       set(TYPEART_RT_DIR ${TYPEART_BIN_DIR}/lib/runtime)
       set(TYPEART_PASS_DIR ${TYPEART_BIN_DIR}/lib/passes)
       set(TYPEART_ANALYSIS_PASS_DIR ${TYPEART_BIN_DIR}/analysis)
@@ -40,63 +48,50 @@ function(configure_cusan_script input output)
 
     if(EXECUTABLE_OUTPUT_PATH)
         set(TYPEART_BINARY_DIR ${EXECUTABLE_OUTPUT_PATH})
+        set(CUSAN_BINARY_DIR ${EXECUTABLE_OUTPUT_PATH})
     else()
         set(TYPEART_BINARY_DIR ${TYPEART_BIN_DIR})
-        set(CUSAN_BINARY_DIR ${CMAKE_BINARY_DIR})
+        set(CUSAN_BINARY_DIR ${CUSAN_BINARY_DIR})
     endif()
-
-    set(TYPEART_RELOCATABLE 0)
   endif()
 
   if(ARG_COMPILER)
-    set(TYPEART_COMPILER ${ARG_COMPILER})
+    set(CUSAN_COMPILER ${ARG_COMPILER})
   endif()
 
-  set(TYPEART_OPT "${TYPEART_OPT_EXEC}")
+  set(CUSAN_OPT "${CUSAN_OPT_EXEC}")
   if(${LLVM_VERSION_MAJOR} VERSION_GREATER_EQUAL "13")
-    set(TYPEART_OPT "${TYPEART_OPT} -enable-new-pm=0")
+    if(CUSAN_TYPEART)
+      set(CUSAN_OPT "${CUSAN_OPT} -enable-new-pm=0")
+    else()
+      set(CUSAN_NEW_PM_REQUIRED 1)
+    endif()
   endif()
-
-  set(TYPEART_LLC "${TYPEART_LLC_EXEC}")
 
   if(ARG_APPLY_MODE)
     set(TYPEART_RUN_SCRIPT 0)
+    set(CUSAN_RUN_SCRIPT 0)
   else()
     set(TYPEART_RUN_SCRIPT 1)
+    set(CUSAN_RUN_SCRIPT 1)
   endif()
 
   if(ARG_WITH_FILTER)
     set(TYPEART_CALLFILTER "--typeart-filter")
   endif()
 
-  #if(TYPEART_TSAN)
-    typeart_target_tsan_flags(TYPEART_SAN_FLAGS)
-  #endif()
+  set(CUSAN_SAN_FLAG "-fsanitize=thread")
 
-  if(TYPEART_ASAN)
-    typeart_target_asan_flags(asan_flags)
-    set(TYPEART_SAN_FLAGS ${TYPEART_SAN_FLAGS} ${asan_flags})
-  endif()
-
-  if(TYPEART_UBSAN)
-    typeart_target_ubsan_flags(ubsan_flags)
-    set(TYPEART_SAN_FLAGS ${TYPEART_SAN_FLAGS} ${ubsan_flags})
-  endif()
-
-  list(JOIN TYPEART_SAN_FLAGS " " TYPEART_SAN_FLAGS)
-
-  set(CUSAN_INCLUDE_DIRS "-I${PROJECT_SOURCE_DIR}/lib/runtime")
-
-  if(ARG_APPLY_MODE)
-    set(CUSAN_RUN_SCRIPT 0)
+  if(CUSAN_TYPEART)
+    set(CUSAN_WITH_TYPEART 1)
   else()
-    set(CUSAN_RUN_SCRIPT 1)
+  set(CUSAN_WITH_TYPEART 0)
   endif()
 
   cusan_target_generate_file(${input} ${output})
 endfunction()
 
-function(typeart_find_mpi_vendor_helper symbol ret_value)
+function(cusan_find_mpi_vendor_helper symbol ret_value)
   find_package(MPI)
 
   if(NOT MPI_FOUND)
@@ -121,7 +116,7 @@ function(typeart_find_mpi_vendor_helper symbol ret_value)
   check_c_source_compiles("${MPI_TEST_CODE}" ${ret_value})
 endfunction()
 
-function(set_typeart_mpi_compiler)
+function(set_cusan_mpi_compiler)
   # Note on mpich & Intel: Intel may also define \"MPICH_NAME\"
   # in mpi.h, so check MPICH last
   list(APPEND l_vendor OPEN_MPI INTEL_MPI MPICH)
@@ -130,21 +125,21 @@ function(set_typeart_mpi_compiler)
   list(APPEND l_env_cxx OMPI_CXX I_MPI_CXX MPICH_CXX)
 
   foreach(vendor symbol env_c env_cxx IN ZIP_LISTS l_vendor l_symbol l_env_c l_env_cxx)
-    typeart_find_mpi_vendor_helper(${symbol} TYPEART_HAVE_${vendor})
-    if(TYPEART_HAVE_${vendor})
+    cusan_find_mpi_vendor_helper(${symbol} CUSAN_HAVE_${vendor})
+    if(CUSAN_HAVE_${vendor})
       if(MPI_C_FOUND)
-        set(TYPEART_MPICC
-            "env ${env_c}=${TYPEART_CLANG_EXEC} ${MPI_C_COMPILER}"
-            CACHE STRING "TypeART MPICC compiler command for scripts"
+        set(CUSAN_MPICC
+            "env ${env_c}=${CUSAN_CLANG_EXEC} ${MPI_C_COMPILER}"
+            CACHE STRING "CuSan MPICC compiler command for scripts"
           )
-        mark_as_advanced(TYPEART_MPICC)
+        mark_as_advanced(CUSAN_MPICC)
       endif()
       if(MPI_CXX_FOUND)
-        set(TYPEART_MPICXX
-            "env ${env_cxx}=${TYPEART_CLANGCXX_EXEC} ${MPI_CXX_COMPILER}"
-            CACHE STRING "TypeART MPICXX compiler command for scripts"
+        set(CUSAN_MPICXX
+            "env ${env_cxx}=${CUSAN_CLANGCXX_EXEC} ${MPI_CXX_COMPILER}"
+            CACHE STRING "CuSan MPICXX compiler command for scripts"
         )
-        mark_as_advanced(TYPEART_MPICXX)
+        mark_as_advanced(CUSAN_MPICXX)
       endif()
       break()
     endif()
@@ -152,65 +147,88 @@ function(set_typeart_mpi_compiler)
 endfunction()
 
 if(MPI_FOUND)
-  set_typeart_mpi_compiler()
+  set_cusan_mpi_compiler()
+endif()
+
+set(CUSAN_WRAPPER cusan-wrapper.in)
+
+if(NOT CUSAN_TYPEART)
+  add_library(typeart_runtime_mock SHARED IMPORTED)
+  add_library(typeart::Runtime ALIAS typeart_runtime_mock)
+  set_target_properties(
+    typeart_runtime_mock
+    PROPERTIES
+    OUTPUT_NAME "${PROJECT_NAME}RuntimePlaceholder"
+    IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/lib/runtime"
+  )
+  add_library(typeart_transform_mock SHARED IMPORTED)
+  add_library(typeart::TransformPass ALIAS typeart_transform_mock)
+  set_target_properties(
+    typeart_transform_mock
+    PROPERTIES
+    OUTPUT_NAME "${PROJECT_NAME}TransformPassPlaceholder"
+    IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/lib/runtime"
+  )
 endif()
 
 find_package(MPI)
 if(MPI_C_FOUND)
   configure_cusan_script(
-    cusan-wrapper.in cusan-mpicc${CMAKE_DEBUG_POSTFIX}
+    ${CUSAN_WRAPPER} cusan-mpicc${CMAKE_DEBUG_POSTFIX}
     INSTALL_MODE ON
     WITH_FILTER ON
-    COMPILER "${TYPEART_MPICC}"
+    COMPILER "${CUSAN_MPICC}"
   )
   configure_cusan_script(
-    cusan-wrapper.in cusan-mpicc-test
+    ${CUSAN_WRAPPER} cusan-mpicc-test
     WITH_FILTER ON
-    COMPILER "${TYPEART_MPICC}"
+    COMPILER "${CUSAN_MPICC}"
   )
 endif()
 
 if(MPI_CXX_FOUND)
   configure_cusan_script(
-    cusan-wrapper.in cusan-mpic++${CMAKE_DEBUG_POSTFIX}
+    ${CUSAN_WRAPPER} cusan-mpic++${CMAKE_DEBUG_POSTFIX}
     INSTALL_MODE ON
     WITH_FILTER ON
-    COMPILER "${TYPEART_MPICXX}"
+    COMPILER "${CUSAN_MPICXX}"
   )
   configure_cusan_script(
-    cusan-wrapper.in cusan-mpic++-test
+    ${CUSAN_WRAPPER} cusan-mpic++-test
     WITH_FILTER ON
-    COMPILER "${TYPEART_MPICXX}"
+    COMPILER "${CUSAN_MPICXX}"
   )
 endif()
 
 configure_cusan_script(
-  cusan-wrapper.in cusan-clang${CMAKE_DEBUG_POSTFIX}
+  ${CUSAN_WRAPPER} cusan-clang${CMAKE_DEBUG_POSTFIX}
   INSTALL_MODE ON
-  COMPILER ${TYPEART_CLANG_EXEC}
+  COMPILER ${CUSAN_CLANG_EXEC}
 )
 configure_cusan_script(
-  cusan-wrapper.in cusan-clang++${CMAKE_DEBUG_POSTFIX}
+  ${CUSAN_WRAPPER} cusan-clang++${CMAKE_DEBUG_POSTFIX}
   INSTALL_MODE ON
-  COMPILER ${TYPEART_CLANGCXX_EXEC}
+  COMPILER ${CUSAN_CLANGCXX_EXEC}
 )
 
 configure_cusan_script(
-  cusan-wrapper.in cusan-clang-test
-  COMPILER ${TYPEART_CLANG_EXEC}
+  ${CUSAN_WRAPPER} cusan-clang-test
+  COMPILER ${CUSAN_CLANG_EXEC}
 )
 configure_cusan_script(
-  cusan-wrapper.in cusan-clang++-test
-  COMPILER ${TYPEART_CLANGCXX_EXEC}
+  ${CUSAN_WRAPPER} cusan-clang++-test
+  COMPILER ${CUSAN_CLANGCXX_EXEC}
 )
 
 #configure_cusan_script(cusan-tmpl.sh.in run.sh)
-configure_cusan_script(
-  cusan-tmpl.sh.in apply.sh
-  APPLY_MODE ON
-)
+#if(CUSAN_TYPEART)
+  configure_cusan_script(
+    cusan-tmpl.sh.in apply.sh
+    APPLY_MODE ON
+  )
+#endif()
 
-configure_cusan_script(cusan-wrapper.in cusan-clang.sh)
+configure_cusan_script(${CUSAN_WRAPPER} cusan-clang.sh)
 
 install(
   PROGRAMS

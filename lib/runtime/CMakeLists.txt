@@ -14,7 +14,9 @@ target_compile_features(cusan_mpi_interceptor PUBLIC cxx_std_17)
 target_compile_definitions(
   cusan_mpi_interceptor
   PRIVATE CUSAN_LOG_LEVEL=${CUSAN_LOG_LEVEL_RT}
+  LLVM_VERSION_MAJOR=${LLVM_VERSION_MAJOR}
    $<$<BOOL:${CUSAN_FIBERPOOL}>:CUSAN_FIBERPOOL=1>
+   $<$<BOOL:${CUSAN_TYPEART}>:CUSAN_TYPEART=1>
    $<$<BOOL:${CUSAN_SOFTCOUNTER}>:CUSAN_SOFTCOUNTER>
 )
 
@@ -72,7 +74,12 @@ add_library(cusan::Runtime ALIAS cusan_Runtime)
 target_compile_features(cusan_Runtime PUBLIC cxx_std_17)
 
 # latter for cudaSpecific.cpp:
-target_link_libraries(cusan_Runtime PRIVATE typeart::Runtime CUDA::cudart)
+target_link_libraries(cusan_Runtime PRIVATE CUDA::cudart)
+
+if(CUSAN_TYPEART)
+  target_link_libraries(cusan_Runtime PRIVATE typeart::Runtime)
+endif()
+target_link_libraries(cusan_Runtime PRIVATE LLVMSupport)
 
 if(CUSAN_FIBERPOOL)
   target_link_libraries(cusan_Runtime PUBLIC cusan::fiberpool)
@@ -98,8 +105,10 @@ cusan_target_define_file_basename(cusan_Runtime)
 target_compile_definitions(
   cusan_Runtime
   PRIVATE CUSAN_LOG_LEVEL=${CUSAN_LOG_LEVEL_RT}
+   LLVM_VERSION_MAJOR=${LLVM_VERSION_MAJOR}
    $<$<BOOL:${CUSAN_SYNC_DETAIL_LEVEL}>:CUSAN_SYNC_DETAIL_LEVEL=1>
    $<$<BOOL:${CUSAN_FIBERPOOL}>:CUSAN_FIBERPOOL=1>
+   $<$<BOOL:${CUSAN_TYPEART}>:CUSAN_TYPEART=1>
    $<$<BOOL:${CUSAN_SOFTCOUNTER}>:CUSAN_SOFTCOUNTER>
 )
 

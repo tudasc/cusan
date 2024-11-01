@@ -1,10 +1,9 @@
 // clang-format off
-// RUN: %wrapper-cxx %tsan-compile-flags -O1 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
+// RUN: %wrapper-cxx %clang_args %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
 // RUN: %tsan-options %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s
 
-// RUN: %wrapper-cxx %tsan-compile-flags -DCUSAN_SYNC -O1 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
+// RUN: %wrapper-cxx -DCUSAN_SYNC %clang_args %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
 // RUN: %tsan-options %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
-
 // clang-format on
 
 // CHECK-DAG: data race
@@ -12,8 +11,6 @@
 
 // CHECK-SYNC-NOT: data race
 // CHECK-SYNC-NOT: [Error] sync
-
-// XFAIL: *
 
 #include <cstdio>
 #include <cuda_runtime.h>
@@ -36,41 +33,37 @@ int main() {
   const int size            = 256;
   const int threadsPerBlock = size;
   const int blocksPerGrid   = (size + threadsPerBlock - 1) / threadsPerBlock;
-  int* data;
-  // int* data2;
+  int* managed_data;
+  int* managed_data2;
+  int* fake_data;
   int* d_data2;
-  int* h_data = (int*)malloc(size * sizeof(int));
   cudaStream_t stream1;
   cudaStream_t stream2;
-  cudaStreamCreate(&stream1);
+  cudaStreamCreateWithFlags(&stream1, cudaStreamNonBlocking);
   cudaStreamCreate(&stream2);
 
-  cudaMalloc(&data, size * sizeof(int));
-  cudaMemset(data, 0, size * sizeof(int));
-  cudaDeviceSynchronize();
+  cudaMallocManaged(&managed_data, size * sizeof(int));
+  cudaMallocManaged(&managed_data2, size * sizeof(int));
+  cudaMallocManaged(&fake_data, 4);
+  cudaMemset(managed_data, 0, size * sizeof(int));
+  cudaMemset(managed_data2, 0, size * sizeof(int));
 
-  write_kernel_delay<<<blocksPerGrid, threadsPerBlock, 0, stream1>>>(data, size, 1316134912);
+  write_kernel_delay<<<blocksPerGrid, threadsPerBlock, 0, stream1>>>(managed_data, size, 1316134912);
+  cudaMemset(fake_data, 0, 4);
 #ifdef CUSAN_SYNC
-  cudaMalloc(&d_data2, size);
+  cudaStreamSynchronize(stream1);
 #endif
-  // write_kernel_delay<<<blocksPerGrid, threadsPerBlock, 0, stream2>>>(data2, size, 1);
-  cudaMemcpyAsync(h_data, data, size * sizeof(int), cudaMemcpyDefault, stream2);
+  write_kernel_delay<<<blocksPerGrid, threadsPerBlock, 0, stream2>>>(managed_data2, size, 1);
   cudaStreamSynchronize(stream2);
   for (int i = 0; i < size; i++) {
-    printf("[Error] sync %i\n", h_data[i]);
-    if (h_data[i] == 0) {
-      // printf("[Error] sync %i\n", managed_data[i]);
+    if (managed_data[i] == 0) {
+      printf("[Error] sync %i\n", managed_data[i]);
       break;
     }
   }
-#ifdef CUSAN_SYNC
-  cudaFree(d_data2);
-#endif
-  // cudaFree(data2);
-  cudaFree(data);
 
-  cudaStreamDestroy(stream1);
-  cudaStreamDestroy(stream2);
+  cudaFree(d_data2);
+  cudaFree(managed_data);
 
   return 0;
 }

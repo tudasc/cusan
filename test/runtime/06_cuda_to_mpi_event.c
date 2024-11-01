@@ -1,20 +1,19 @@
 // clang-format off
-// TODO: Fix segfault when program terminates.
+// RUN: %wrapper-mpicxx %clang_args %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
+// RUN: %cusan_ldpreload %tsan-options %mpi-exec -n 2 %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s
 
-// RUN: %wrapper-mpicxx %tsan-compile-flags -O2 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
-// RUN: %tsan-options %mpi-exec -n 2 %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s
+// RUN: %wrapper-mpicxx -DCUSAN_SYNC %clang_args %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
+// RUN: %cusan_ldpreload %tsan-options %mpi-exec -n 2 %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
 
-// RUN: %wrapper-mpicxx %tsan-compile-flags -DCUSAN_SYNC -O2 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
-// RUN: %tsan-options %mpi-exec -n 2 %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
 // clang-format on
 
-// CHECK: [Error] sync
+// CHECK-DAG: data race
+// CHECK-DAG: [Error] sync
 
+// CHECK-SYNC-NOT: data race
 // CHECK-SYNC-NOT: [Error] sync
 
 #include "../support/gpu_mpi.h"
-
-#include <unistd.h>
 
 __global__ void kernel(int* arr, const int N) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -55,11 +54,15 @@ int main(int argc, char* argv[]) {
   cudaMalloc(&d_data, size * sizeof(int));
 
   if (world_rank == 0) {
+    cudaEvent_t event;
+    cudaEventCreate(&event);
     kernel<<<blocksPerGrid, threadsPerBlock>>>(d_data, size);
+    cudaEventRecord(event);
 #ifdef CUSAN_SYNC
-    cudaDeviceSynchronize();  // FIXME: uncomment for correct execution
+    cudaEventSynchronize(event);  // FIXME: uncomment for correct execution
 #endif
     MPI_Send(d_data, size, MPI_INT, 1, 0, MPI_COMM_WORLD);
+    cudaEventDestroy(event);
   } else if (world_rank == 1) {
     MPI_Recv(d_data, size, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
   }

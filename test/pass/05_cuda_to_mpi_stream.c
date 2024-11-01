@@ -1,25 +1,13 @@
 // clang-format off
-// RUN: %wrapper-mpicxx %tsan-compile-flags -O2 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
-// RUN: %cusan_ldpreload %tsan-options %mpi-exec -n 2 %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s
-
-// RUN: %wrapper-mpicxx %tsan-compile-flags -DCUSAN_SYNC -O2 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
-// RUN: %cusan_ldpreload %tsan-options %mpi-exec -n 2 %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
-
-// RUN: %apply %s --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
+// RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 // clang-format on
 
-// CHECK-DAG: data race
-// CHECK-DAG: [Error] sync
-
-// CHECK-SYNC-NOT: data race
-// CHECK-SYNC-NOT: [Error] sync
-
-// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamCreate
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
 
 // CHECK-LLVM-IR: cudaMemcpyAsync
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy_async
-// CHECK-LLVM-IR: invoke i32 @cudaStreamSynchronize
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamSynchronize
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_stream
 
 #include "../support/gpu_mpi.h"
@@ -28,7 +16,7 @@ __global__ void kernel(int* arr, const int N) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid < N) {
 #if __CUDA_ARCH__ >= 700
-    for (int i = 0; i < tid; i++) {
+    for (int i = 0; i < tid; i++ % apply % s - strip - debug) {
       __nanosleep(1000000U);
     }
 #else

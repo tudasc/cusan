@@ -4,9 +4,10 @@
 // (See accompanying file LICENSE)
 // SPDX-License-Identifier: BSD-3-Clause
 
+#include "CusanPass.h"
+
 #include "AnalysisTransform.h"
 #include "CommandLine.h"
-#include "CusanPass.h"
 #include "FunctionDecl.h"
 #include "analysis/KernelAnalysis.h"
 #include "support/CudaUtil.h"
@@ -57,7 +58,7 @@ class LegacyCusanPass : public llvm::ModulePass {
  public:
   static char ID;  // NOLINT
 
-  LegacyCusanPass() : ModulePass(ID){};
+  LegacyCusanPass() : ModulePass(ID) {};
 
   bool runOnModule(llvm::Module& module) override;
 
@@ -131,34 +132,45 @@ bool CusanPass::runOnFunc(llvm::Function& function) {
   }
 
   bool modified = false;
-  transform::DeviceSyncInstrumenter(&cusan_decls_).instrument(function);
-  transform::StreamSyncInstrumenter(&cusan_decls_).instrument(function);
-  transform::EventSyncInstrumenter(&cusan_decls_).instrument(function);
-  transform::EventRecordInstrumenter(&cusan_decls_).instrument(function);
-  transform::EventRecordFlagsInstrumenter(&cusan_decls_).instrument(function);
-  transform::EventCreateInstrumenter(&cusan_decls_).instrument(function);
-  transform::StreamCreateInstrumenter(&cusan_decls_).instrument(function);
-  transform::MemsetAsyncInstrumenter(&cusan_decls_).instrument(function);
-  transform::MemcpyAsyncInstrumenter(&cusan_decls_).instrument(function);
-  transform::CudaMemsetInstrumenter(&cusan_decls_).instrument(function);
-  transform::CudaMemcpyInstrumenter(&cusan_decls_).instrument(function);
-  transform::StreamWaitEventInstrumenter(&cusan_decls_).instrument(function);
-  transform::CudaMallocHost(&cusan_decls_).instrument(function);
-  transform::CudaHostAlloc(&cusan_decls_).instrument(function);
-  transform::CudaHostFree(&cusan_decls_).instrument(function);
-  transform::CudaHostRegister(&cusan_decls_).instrument(function);
-  transform::CudaHostUnregister(&cusan_decls_).instrument(function);
-  transform::CudaMallocManaged(&cusan_decls_).instrument(function);
-  transform::CudaMalloc(&cusan_decls_).instrument(function);
-  transform::CudaFree(&cusan_decls_).instrument(function);
-  transform::CudaStreamQuery(&cusan_decls_).instrument(function);
-  transform::CudaEventQuery(&cusan_decls_).instrument(function);
-  transform::StreamCreateWithFlagsInstrumenter(&cusan_decls_).instrument(function);
+
+  modified |= transform::DeviceSyncInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::StreamSyncInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::EventSyncInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::EventRecordInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::EventRecordFlagsInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::CudaEventCreateInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::CudaEventCreateWithFlagsInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::StreamCreateInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::CudaMemset2dAsyncInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::CudaMemsetAsyncInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::CudaMemcpyAsyncInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::CudaMemset2dInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::CudaMemsetInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::CudaMemcpyInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::CudaMemcpy2DInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::CudaMemcpy2DAsyncInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::StreamWaitEventInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::CudaMallocHost(&cusan_decls_).instrument(function);
+  modified |= transform::CudaHostAlloc(&cusan_decls_).instrument(function);
+  modified |= transform::CudaHostFree(&cusan_decls_).instrument(function);
+  modified |= transform::CudaHostRegister(&cusan_decls_).instrument(function);
+  modified |= transform::CudaHostUnregister(&cusan_decls_).instrument(function);
+  modified |= transform::CudaMallocManaged(&cusan_decls_).instrument(function);
+  modified |= transform::CudaMalloc(&cusan_decls_).instrument(function);
+  modified |= transform::CudaFree(&cusan_decls_).instrument(function);
+  modified |= transform::CudaStreamQuery(&cusan_decls_).instrument(function);
+  modified |= transform::CudaEventQuery(&cusan_decls_).instrument(function);
+  modified |= transform::StreamCreateWithFlagsInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::StreamCreateWithPriorityInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::CudaMallocPitch(&cusan_decls_).instrument(function);
+
   auto data_for_host = host::kernel_model_for_stub(&function, this->kernel_models_);
   if (data_for_host) {
-    transform::CallInstrumenter(analysis::CudaKernelInvokeCollector{data_for_host.value()},
-                                transform::KernelInvokeTransformer{&cusan_decls_}, function)
-        .instrument();
+    LOG_FATAL("Found kernel data for " << util::try_demangle_fully(function) << ": "
+                                       << data_for_host.value().kernel_name)
+    modified |= transform::CallInstrumenter(analysis::CudaKernelInvokeCollector{data_for_host.value()},
+                                            transform::KernelInvokeTransformer{&cusan_decls_}, function)
+                    .instrument();
   }
   return modified;
 }

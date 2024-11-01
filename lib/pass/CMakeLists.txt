@@ -1,5 +1,7 @@
 set(PASS_SOURCES
   CusanPass.cpp
+  AnalysisTransform.cpp
+  FunctionDecl.cpp
 )
 
 cusan_llvm_module(cusan_TransformPass
@@ -19,6 +21,10 @@ set_target_properties(
 add_library(cusan::TransformPass ALIAS cusan_TransformPass)
 
 target_compile_features(cusan_TransformPass PUBLIC cxx_std_17)
+
+target_compile_definitions(cusan_TransformPass PRIVATE 
+  LLVM_VERSION_MAJOR=${LLVM_VERSION_MAJOR}
+  CUSAN_LOG_LEVEL=${CUSAN_LOG_LEVEL_PASS})
 
 target_include_directories(cusan_TransformPass ${warning_guard}
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}

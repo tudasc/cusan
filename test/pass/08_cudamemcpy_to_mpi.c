@@ -1,23 +1,19 @@
 // clang-format off
-// RUN: %wrapper-mpicxx %tsan-compile-flags -O2 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
-// RUN: %tsan-options %mpi-exec -n 2 %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s --allow-empty
 
-// RUN: %apply %s --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
+// RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 
-// CHECK-NOT: data race
-// CHECK-NOT: [Error] sync
 
-// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamCreate
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
-// CHECK-LLVM-IR: invoke i32 @cudaMemset(i8* {{.*}}[[mset_target:%[0-9a-z]+]],
-// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memset(i8* {{.*}}[[mset_target]],
-// CHECK-LLVM-IR: invoke i32 @cudaDeviceSynchronize 
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMemset({{i8\*|ptr}} {{.*}}[[mset_target:%[0-9a-z]+]],
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memset({{i8\*|ptr}} {{.*}}[[mset_target]],
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaDeviceSynchronize 
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_device 
-// CHECK-LLVM-IR: invoke i32 @cudaMemcpy(i8* {{.*}}[[mcpy_target:%[0-9a-z]+]], i8* {{.*}}[[mcpy_from:%[0-9a-z]+]],
-// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy(i8* {{.*}}[[mcpy_target]], i8* {{.*}}[[mcpy_from]],
-// CHECK-LLVM-IR: invoke i32 @cudaMemcpyAsync(i8* {{.*}}[[mcpyasy_target:%[0-9a-z]+]], i8* {{.*}}[[mcpyasy_from:%[0-9a-z]+]],
-// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy_async(i8* {{.*}}[[mcpyasy_target]], i8* {{.*}}[[mcpyasy_from]],
-// CHECK-LLVM-IR: invoke i32 @cudaStreamSynchronize
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMemcpy({{i8\*|ptr}} {{.*}}[[mcpy_target:%[0-9a-z]+]], {{i8\*|ptr}} {{.*}}[[mcpy_from:%[0-9a-z]+]],
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy({{i8\*|ptr}} {{.*}}[[mcpy_target]], {{i8\*|ptr}} {{.*}}[[mcpy_from]],
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMemcpyAsync({{i8\*|ptr}} {{.*}}[[mcpyasy_target:%[0-9a-z]+]], {{i8\*|ptr}} {{.*}}[[mcpyasy_from:%[0-9a-z]+]],
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy_async({{i8\*|ptr}} {{.*}}[[mcpyasy_target]], {{i8\*|ptr}} {{.*}}[[mcpyasy_from]],
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamSynchronize
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_stream
 
 // clang-format on

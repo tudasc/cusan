@@ -1,31 +1,13 @@
 // clang-format off
-// RUN: %wrapper-mpicxx %tsan-compile-flags -O2 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
+// RUN: %wrapper-mpicxx %clang_args %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
 // RUN: %tsan-options %mpi-exec -n 1 %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s -DFILENAME=%s
 
-// RUN: %wrapper-mpicxx %tsan-compile-flags -DCUSAN_SYNC -O2 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
+// RUN: %wrapper-mpicxx -DCUSAN_SYNC %clang_args %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
 // RUN: %tsan-options %mpi-exec -n 1 %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-SYNC
-
-// RUN: %apply %s --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 > test_out.ll
-// RUN: %apply %s --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 
 // CHECK-DAG: data race
 
 // CHECK-SYNC-NOT: data race
-
-// CHECK-LLVM-IR: invoke i32 @cudaMemcpy(i8* {{.*}}[[mcpy_target:%[0-9a-z]+]], i8* {{.*}}[[mcpy_from:%[0-9a-z]+]],
-// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy(i8* {{.*}}[[mcpy_target]], i8* {{.*}}[[mcpy_from]],
-// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
-// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream 
-// CHECK-LLVM-IR: invoke i32 @cudaStreamCreate
-// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream 
-// CHECK-LLVM-IR: invoke i32 @cudaEventCreate
-// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_event
-// CHECK-LLVM-IR: invoke i32 @cudaEventRecord
-// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_event_record
-// CHECK-LLVM-IR: invoke i32 @cudaMemcpy(i8* {{.*}}[[mcpy2_target:%[0-9a-z]+]], i8* {{.*}}[[mcpy2_from:%[0-9a-z]+]],
-// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy(i8* {{.*}}[[mcpy2_target]], i8* {{.*}}[[mcpy2_from]],
-// CHECK-LLVM-IR: invoke i32 @cudaStreamSynchronize
-// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_stream
 
 // clang-format on
 

@@ -43,35 +43,39 @@ bool ModelHandler::insert(const cusan::KernelModel& model) {
 
   return false;
 }
+
 llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const FunctionSubArg& arg) {
   os << "[";
-  if (arg.value.hasValue()) {
-    os << *arg.value.getValue();
+  if (arg.value.has_value()) {
+    os << *arg.value.value();
   } else {
     os << "<null>";
   }
-  if (!arg.indices.empty()) {
-    os << ", indices:[";
-    for (auto index : arg.indices) {
+  if (arg.does_load) {
+    os << ", is_loading";
+  }
+  if (!arg.gep_indicies.empty()) {
+    os << ", gep_indices:[";
+    for (const auto& index : arg.gep_indicies) {
       os << index << ", ";
     }
     os << "]";
   } else {
-    os << ", indices:[]";
+    os << ", gep_indices:[]";
   }
   os << ", ptr: " << static_cast<int>(arg.is_pointer) << ", rw: " << arg.state << "]";
   return os;
 }
 llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const FunctionArg& arg) {
   os << "[";
-  if (arg.value.hasValue()) {
-    os << *arg.value.getValue();
+  if (arg.value.has_value()) {
+    os << *arg.value.value();
   } else {
     os << "<null>";
   }
   os << ", subArgs: [";
-  for (const auto& arg : arg.subargs) {
-    os << arg;
+  for (const auto& sub_arg : arg.subargs) {
+    os << sub_arg;
   }
   os << "]";
   os << ", ptr: " << static_cast<int>(arg.is_pointer) << ", pos: " << arg.arg_pos << "]";

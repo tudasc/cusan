@@ -22,6 +22,8 @@ target_include_directories(cusan_Analysis ${warning_guard}
 
 cusan_target_define_file_basename(cusan_Analysis)
 
+target_compile_definitions(cusan_Analysis PRIVATE "LLVM_VERSION_MAJOR=${LLVM_VERSION_MAJOR}")
+
 set(CONFIG_NAME cusanAnalysis)
 set(TARGETS_EXPORT_NAME ${CONFIG_NAME}Targets)
 

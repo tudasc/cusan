@@ -1,44 +1,45 @@
 // clang-format off
-// RUN: %wrapper-cxx %tsan-compile-flags -O2 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
-// RUN: %tsan-options %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s
+// RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
+// clang-format on
 
-// RUN: %wrapper-cxx %tsan-compile-flags -DCUSAN_SYNC -O2 -g %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
-// RUN: %tsan-options %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
-
-// UN: %apply %s --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 > test_out.ll
-
-// CHECK-DAG: data race
-
-// CHECK-SYNC-NOT: data race
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamCreate
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamCreate
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaDeviceSynchronize
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_device
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamDestroy
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamDestroy
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaFree
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_device_free
+// CHECK-LLVM-IR: {{call|invoke}} i32 @cudaFree
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_device_free
 
 #include "../support/gpu_mpi.h"
 
-struct BufferStorage{
+struct BufferStorage {
   int* buff1;
   int* buff2;
 };
 
-
 __global__ void kernel1(BufferStorage storage, const int N) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid < N) {
-    storage.buff1[tid] = tid*32;
+    storage.buff1[tid] = tid * 32;
   }
 }
 __global__ void kernel2(BufferStorage storage, const int N) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid < N) {
-    storage.buff2[tid] = tid*32;
+    storage.buff2[tid] = tid * 32;
   }
 }
 __global__ void kernel3(BufferStorage storage, const int N) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid < N) {
-    storage.buff2[tid] = tid*32;
+    storage.buff2[tid] = tid * 32;
   }
 }
-
-
 
 int main(int argc, char* argv[]) {
   const int size            = 512;
@@ -54,17 +55,19 @@ int main(int argc, char* argv[]) {
   cudaStreamCreate(&stream2);
 
   kernel1<<<blocksPerGrid, threadsPerBlock, 0, stream1>>>(buffStor, size);
-  kernel3<<<blocksPerGrid, threadsPerBlock, 0, stream2>>>(buffStor, size);//no problem since kernel 1 and 3 write to different
-  kernel2<<<blocksPerGrid, threadsPerBlock, 0, stream2>>>(buffStor, size);//also no problem since they on same stream
+  kernel3<<<blocksPerGrid, threadsPerBlock, 0, stream2>>>(buffStor,
+                                                          size);  // no problem since kernel 1 and 3 write to different
+  kernel2<<<blocksPerGrid, threadsPerBlock, 0, stream2>>>(buffStor, size);  // also no problem since they on same stream
 #ifdef CUSAN_SYNC
   cudaDeviceSynchronize();
 #endif
-  kernel3<<<blocksPerGrid, threadsPerBlock, 0, stream1>>>(buffStor, size);//problem since different stream but same write target
+  kernel3<<<blocksPerGrid, threadsPerBlock, 0, stream1>>>(
+      buffStor, size);  // problem since different stream but same write target
 
   cudaDeviceSynchronize();
 
-  cudaStreamDestroy ( stream2 );
-  cudaStreamDestroy ( stream1 );
+  cudaStreamDestroy(stream2);
+  cudaStreamDestroy(stream1);
   cudaFree(buffStor.buff1);
   cudaFree(buffStor.buff2);
   return 0;
