@@ -59,7 +59,7 @@ class LegacyCusanPass : public llvm::ModulePass {
  public:
   static char ID;  // NOLINT
 
-  LegacyCusanPass() : ModulePass(ID){};
+  LegacyCusanPass() : ModulePass(ID) {};
 
   bool runOnModule(llvm::Module& module) override;
 
