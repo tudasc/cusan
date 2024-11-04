@@ -72,13 +72,16 @@ bool LegacyCusanPass::runOnModule(llvm::Module& module) {
 }
 
 llvm::PreservedAnalyses CusanPass::run(llvm::Module& module, llvm::ModuleAnalysisManager& AM) {
-  ModulePassManager MPM;             
-  MPM.addPass(createModuleToFunctionPassAdaptor(llvm::PromotePass()));
-  auto mem2reg_res = MPM.run(module, AM);
+  auto promote_pass_preserved = llvm::PreservedAnalyses::all();
+  if (llvm::StringRef(module.getTargetTriple()).contains("nvptx64-nvidia-cuda")) {
+    ModulePassManager module_pass_manager;
+    module_pass_manager.addPass(createModuleToFunctionPassAdaptor(llvm::PromotePass()));
+    promote_pass_preserved = module_pass_manager.run(module, AM);
+  }
 
   const auto changed = runOnModule(module);
 
-  return changed ?  llvm::PreservedAnalyses::none() : mem2reg_res;
+  return changed ? llvm::PreservedAnalyses::none() : promote_pass_preserved;
 }
 
 bool CusanPass::runOnModule(llvm::Module& module) {
@@ -191,8 +194,7 @@ bool CusanPass::runOnFunc(llvm::Function& function) {
 llvm::PassPluginLibraryInfo getCusanPassPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, "cusan", LLVM_VERSION_STRING, [](PassBuilder& pass_builder) {
             pass_builder.registerPipelineStartEPCallback(
-                [](auto& MPM, OptimizationLevel) { 
-                  MPM.addPass(cusan::CusanPass()); });
+                [](auto& MPM, OptimizationLevel) { MPM.addPass(cusan::CusanPass()); });
             // pass_builder.registerPipelineParsingCallback(
             //     [](StringRef name, ModulePassManager& module_pm, ArrayRef<PassBuilder::PipelineElement>) {
             //       if (name == "cusan") {
