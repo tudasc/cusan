@@ -9,21 +9,6 @@
 #include <cstddef>
 
 #ifdef __cplusplus
-namespace cusan::runtime {
-using TsanFiber = void*;
-using Event     = const void*;
-using RawStream = const void*;
-}  // namespace cusan::runtime
-using cusan::runtime::Event;
-using cusan::runtime::RawStream;
-using cusan::runtime::TsanFiber;
-#else
-#define TsanFiber void*
-#define Event const void*
-#define RawStream const void*
-#endif
-
-#ifdef __cplusplus
 
 extern "C" {
 #endif
@@ -40,6 +25,34 @@ typedef enum cusan_stream_create_flags_t : unsigned int {
   cusan_StreamFlagsDefault     = 0,
   cusan_StreamFlagsNonBlocking = 1,
 } cusan_StreamCreateFlags;
+#ifdef __cplusplus
+}
+#endif
+
+#ifdef __cplusplus
+namespace cusan::runtime {
+using TsanFiber = void*;
+using Event     = const void*;
+using RawStream = const void*;
+using DeviceID = int;
+cusan_MemcpyKind infer_memcpy_direction(const void* target, const void* from);
+DeviceID get_current_device();
+}  // namespace cusan::runtime
+using cusan::runtime::Event;
+using cusan::runtime::RawStream;
+using cusan::runtime::TsanFiber;
+using cusan::runtime::DeviceID;
+#else
+#define TsanFiber void*
+#define Event const void*
+#define RawStream const void*
+#define DeviceID int
+#endif
+
+#ifdef __cplusplus
+
+extern "C" {
+#endif
 
 void _cusan_kernel_register(void** kernel_args, short* modes, int n, RawStream stream);
 void _cusan_sync_device();

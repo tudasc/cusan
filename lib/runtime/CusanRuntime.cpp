@@ -76,14 +76,27 @@ struct PointerAccess {
   AccessState mode{AccessState::kRW};
 };
 
-class Runtime {
+class Runtime;
+
+class Device {
+  friend Runtime;
   // NOTE: assumed to be a ordered map so we can iterate in ascending order
   std::map<const void*, AllocationInfo> allocations_;
   std::map<Stream, TsanFiber> streams_;
   std::map<Event, Stream> events_;
+
+  Device(){
+    //every device has a default stream
+
+  }
+};
+
+class Runtime {
+  std::map<int32_t, Device> devices_;
+  int32_t current_gpu_;
   TsanFiber cpu_fiber_;
   TsanFiber curr_fiber_;
-  bool init_ = false;
+  bool init_;
 
  public:
   static constexpr Stream kDefaultStream = Stream();
@@ -92,15 +105,10 @@ class Runtime {
   static Runtime& get() {
     static Runtime run_t;
     if (!run_t.init_) {
-#ifdef CUSAN_FIBERPOOL
-      TsanFiberPoolInit();
-#endif
-      run_t.cpu_fiber_  = TsanGetCurrentFiber();
-      run_t.curr_fiber_ = run_t.cpu_fiber_;
-
-      // default '0' cuda stream
+      run_t.current_gpu_ = get_current_device();
+      run_t.cpu_fiber_   = TsanGetCurrentFiber();
+      run_t.devices_.insert({run_t.current_gpu_, {}});
       { run_t.register_stream(kDefaultStream); }
-
       run_t.init_ = true;
     }
     return run_t;
@@ -110,26 +118,33 @@ class Runtime {
 
   void operator=(const Runtime&) = delete;
 
-  [[nodiscard]] const std::map<const void*, AllocationInfo>& get_allocations() const {
-    return allocations_;
+  Device& get_device(DeviceID id) {
+    if (devices_.find(id) == devices_.end()) {
+      devices_.insert({id, {}});
+    }
+    return devices_.at(id);
+  }
+
+  [[nodiscard]] const std::map<const void*, AllocationInfo>& get_allocations() {
+    return get_device(current_gpu_).allocations_;
   }
 
   void happens_before() {
     LOG_TRACE("[cusan]    HappensBefore of curr fiber")
+    auto& gpu = get_device(current_gpu_);
     TsanHappensBefore(curr_fiber_);
     stats_recorder.inc_TsanHappensBefore();
   }
 
   void switch_to_cpu() {
     LOG_TRACE("[cusan]    Switch to cpu")
-    // if we where one a default stream we should also post sync
-    // meaning that all work submitted after from the cpu should also be run after the default kernels are done
-    // TODO: double check with blocking
-    auto search_result = streams_.find(Runtime::kDefaultStream);
-    assert(search_result != streams_.end() && "Tried using stream that wasn't created prior");
+    auto& gpu = get_device(current_gpu_);
+
+    auto search_result = gpu.streams_.find(Runtime::kDefaultStream);
+    assert(search_result != gpu.streams_.end() && "Tried using stream that wasn't created prior");
     if (curr_fiber_ == search_result->second) {
       LOG_TRACE("[cusan]        syncing all other blocking GPU streams to run after since its default stream")
-      for (const auto& [s, sync_var] : streams_) {
+      for (const auto& [s, sync_var] : gpu.streams_) {
         if (s.isBlocking && !s.isDefaultStream()) {
           LOG_TRACE("[cusan]        happens before " << s.handle)
           TsanHappensBefore(sync_var);
@@ -145,28 +160,31 @@ class Runtime {
   }
 
   void register_stream(Stream stream) {
+    auto& gpu = get_device(current_gpu_);
+
     static uint32_t n_streams = 0;
-    auto search_result        = streams_.find(stream);
-    assert(search_result == streams_.end() && "Registered stream twice");
+    auto search_result        = gpu.streams_.find(stream);
+    assert(search_result == gpu.streams_.end() && "Registered stream twice");
     TsanFiber fiber = TsanCreateFiber(0);
     stats_recorder.inc_TsanCreateFiber();
     char name[32];
     snprintf(name, 32, "cuda_stream %u", n_streams++);
     TsanSetFiberName(fiber, name);
-    streams_.insert({stream, fiber});
+    gpu.streams_.insert({stream, fiber});
   }
 
   void switch_to_stream(Stream stream) {
     LOG_TRACE("[cusan]    Switching to stream: " << stream.handle)
-    auto search_result = streams_.find(stream);
-    assert(search_result != streams_.end() && "Tried using stream that wasn't created prior");
+    auto& gpu          = get_device(current_gpu_);
+    auto search_result = gpu.streams_.find(stream);
+    assert(search_result != gpu.streams_.end() && "Tried using stream that wasn't created prior");
     TsanSwitchToFiber(search_result->second, 0);
     stats_recorder.inc_TsanSwitchToFiber();
     if (search_result->first.isDefaultStream()) {
       LOG_TRACE("[cusan]        syncing all other blocking GPU streams since its default stream")
       // then we are on the default stream and as such want to synchronize behind all other streams
       // unless they are nonBlocking
-      for (auto& [s, sync_var] : streams_) {
+      for (auto& [s, sync_var] : gpu.streams_) {
         if (s.isBlocking && !s.isDefaultStream()) {
           LOG_TRACE("[cusan]        happens after " << s.handle)
           TsanHappensAfter(sync_var);
@@ -179,7 +197,8 @@ class Runtime {
 
   void happens_after_all_streams(bool onlyBlockingStreams = false) {
     LOG_TRACE("[cusan]    happens_after_all_streams but only blocking ones: " << onlyBlockingStreams)
-    for (const auto& [stream, fiber] : streams_) {
+    auto& gpu = get_device(current_gpu_);
+    for (const auto& [stream, fiber] : gpu.streams_) {
       if (!onlyBlockingStreams || stream.isBlocking) {
         LOG_TRACE("[cusan]        happens after " << stream.handle)
         TsanHappensAfter(fiber);
@@ -189,43 +208,51 @@ class Runtime {
   }
 
   void happens_after_stream(Stream stream) {
-    auto search_result = streams_.find(stream);
-    assert(search_result != streams_.end() && "Tried using stream that wasn't created prior");
+    auto& gpu = get_device(current_gpu_);
+
+    auto search_result = gpu.streams_.find(stream);
+    assert(search_result != gpu.streams_.end() && "Tried using stream that wasn't created prior");
     TsanHappensAfter(search_result->second);
     stats_recorder.inc_TsanHappensAfter();
   }
 
   void record_event(Event event, Stream stream) {
     LOG_TRACE("[cusan]    Record event: " << event << " stream:" << stream.handle);
-    events_[event] = stream;
+    auto& gpu          = get_device(current_gpu_);
+    gpu.events_[event] = stream;
   }
 
   // Sync the event on the current stream
   void sync_event(Event event) {
-    auto search_result = events_.find(event);
-    assert(search_result != events_.end() && "Tried using event that wasn't recorded to prior");
-    LOG_TRACE("[cusan]    Sync event: " << event << " recorded on stream:" << events_[event].handle)
-    happens_after_stream(events_[event]);
+    auto& gpu = get_device(current_gpu_);
+
+    auto search_result = gpu.events_.find(event);
+    assert(search_result != gpu.events_.end() && "Tried using event that wasn't recorded to prior");
+    LOG_TRACE("[cusan]    Sync event: " << event << " recorded on stream:" << gpu.events_[event].handle)
+    happens_after_stream(gpu.events_[event]);
   }
 
   void insert_allocation(void* ptr, AllocationInfo info) {
-    assert(allocations_.find(ptr) == allocations_.end() && "Registered an allocation multiple times");
-    allocations_[ptr] = info;
+    auto& gpu = get_device(current_gpu_);
+    assert(gpu.allocations_.find(ptr) == gpu.allocations_.end() && "Registered an allocation multiple times");
+    gpu.allocations_[ptr] = info;
   }
 
   void free_allocation(void* ptr, bool must_exist = true) {
-    bool found = allocations_.find(ptr) != allocations_.end();
+    auto& gpu  = get_device(current_gpu_);
+    bool found = gpu.allocations_.find(ptr) != gpu.allocations_.end();
     if (must_exist) {
       assert(found && "Tried to delete a non existent allocation");
     }
     if (found) {
-      allocations_.erase(ptr);
+      gpu.allocations_.erase(ptr);
     }
   }
 
   AllocationInfo* get_allocation_info(const void* ptr) {
-    auto res = allocations_.find(ptr);
-    if (res == allocations_.end()) {
+    auto& gpu = get_device(current_gpu_);
+    auto res  = gpu.allocations_.find(ptr);
+    if (res == gpu.allocations_.end()) {
       // fallback find if it lies within a region
       // for(auto [alloc_ptr, alloc_info]: allocations_){
       //   if(alloc_ptr < ptr && ((const char*)alloc_ptr) + alloc_info.size > ptr){
@@ -269,15 +296,13 @@ class Runtime {
   }
 };
 
-cusan_MemcpyKind infer_memcpy_direction(const void* target, const void* from);
-
 }  // namespace cusan::runtime
 
 using namespace cusan::runtime;
 
 namespace helper {
 #ifndef CUSAN_TYPEART
-inline std::optional<size_t> find_memory_alloc_size(const Runtime& runtime, const void* ptr) {
+inline std::optional<size_t> find_memory_alloc_size(Runtime& runtime, const void* ptr) {
   const auto& allocs = runtime.get_allocations();
 
   // if there exists any allocation

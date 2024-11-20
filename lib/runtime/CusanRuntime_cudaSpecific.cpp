@@ -10,6 +10,15 @@
 #include <cuda_runtime_api.h>
 
 namespace cusan::runtime {
+
+
+
+DeviceID get_current_device(){
+  DeviceID res;
+  cudaGetDevice(&res);
+  return res;
+}
+
 cusan_MemcpyKind infer_memcpy_direction(const void* target, const void* from) {
   cudaDeviceProp prop;
   cudaGetDeviceProperties(&prop, 0);
