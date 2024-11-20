@@ -589,6 +589,29 @@ llvm::SmallVector<Value*> CudaMallocPitch::map_arguments(IRBuilder<>& irb, llvm:
   return {ptr, real_size};
 }
 
+
+// CudaSetDevice
+
+CudaSetDevice::CudaSetDevice(callback::FunctionDecl* decls) {
+  setup("cudaSetDevice", &decls->cusan_set_device.f);
+}
+llvm::SmallVector<Value*> CudaSetDevice::map_arguments(IRBuilder<>&, llvm::ArrayRef<Value*> args) {
+  //cudaSetDevice ( int  device )
+  assert(args.size() == 1);
+  return {args[0]};
+}
+
+// CudaCHooseDevice
+
+CudaChooseDevice::CudaChooseDevice(callback::FunctionDecl* decls) {
+  setup("cudaChooseDevice", &decls->cusan_choose_device.f);
+}
+llvm::SmallVector<Value*> CudaChooseDevice::map_arguments(IRBuilder<>&, llvm::ArrayRef<Value*> args) {
+  //cudaChooseDevice ( int* device, const cudaDeviceProp* prop )
+  assert(args.size() == 2);
+  return {args[0]};
+}
+
 // CudaStreamQuery
 
 CudaStreamQuery::CudaStreamQuery(callback::FunctionDecl* decls) {

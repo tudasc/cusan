@@ -85,15 +85,14 @@ class Device {
   std::map<Stream, TsanFiber> streams_;
   std::map<Event, Stream> events_;
 
-  Device(){
-    //every device has a default stream
-
+  Device() {
+    // every device has a default stream
   }
 };
 
 class Runtime {
   std::map<int32_t, Device> devices_;
-  int32_t current_gpu_;
+  int32_t current_device_;
   TsanFiber cpu_fiber_;
   TsanFiber curr_fiber_;
   bool init_;
@@ -105,9 +104,9 @@ class Runtime {
   static Runtime& get() {
     static Runtime run_t;
     if (!run_t.init_) {
-      run_t.current_gpu_ = get_current_device();
+      run_t.current_device_ = get_current_device();
       run_t.cpu_fiber_   = TsanGetCurrentFiber();
-      run_t.devices_.insert({run_t.current_gpu_, {}});
+      run_t.devices_.insert({run_t.current_device_, {}});
       { run_t.register_stream(kDefaultStream); }
       run_t.init_ = true;
     }
@@ -125,20 +124,27 @@ class Runtime {
     return devices_.at(id);
   }
 
+  void set_device(DeviceID device){
+    if (devices_.find(device) == devices_.end()) {
+      devices_.insert({device, {}});
+    }
+    current_device_ = device;
+  }
+
   [[nodiscard]] const std::map<const void*, AllocationInfo>& get_allocations() {
-    return get_device(current_gpu_).allocations_;
+    return get_device(current_device_).allocations_;
   }
 
   void happens_before() {
     LOG_TRACE("[cusan]    HappensBefore of curr fiber")
-    auto& gpu = get_device(current_gpu_);
+    auto& gpu = get_device(current_device_);
     TsanHappensBefore(curr_fiber_);
     stats_recorder.inc_TsanHappensBefore();
   }
 
   void switch_to_cpu() {
     LOG_TRACE("[cusan]    Switch to cpu")
-    auto& gpu = get_device(current_gpu_);
+    auto& gpu = get_device(current_device_);
 
     auto search_result = gpu.streams_.find(Runtime::kDefaultStream);
     assert(search_result != gpu.streams_.end() && "Tried using stream that wasn't created prior");
@@ -160,7 +166,7 @@ class Runtime {
   }
 
   void register_stream(Stream stream) {
-    auto& gpu = get_device(current_gpu_);
+    auto& gpu = get_device(current_device_);
 
     static uint32_t n_streams = 0;
     auto search_result        = gpu.streams_.find(stream);
@@ -175,7 +181,7 @@ class Runtime {
 
   void switch_to_stream(Stream stream) {
     LOG_TRACE("[cusan]    Switching to stream: " << stream.handle)
-    auto& gpu          = get_device(current_gpu_);
+    auto& gpu          = get_device(current_device_);
     auto search_result = gpu.streams_.find(stream);
     assert(search_result != gpu.streams_.end() && "Tried using stream that wasn't created prior");
     TsanSwitchToFiber(search_result->second, 0);
@@ -197,7 +203,7 @@ class Runtime {
 
   void happens_after_all_streams(bool onlyBlockingStreams = false) {
     LOG_TRACE("[cusan]    happens_after_all_streams but only blocking ones: " << onlyBlockingStreams)
-    auto& gpu = get_device(current_gpu_);
+    auto& gpu = get_device(current_device_);
     for (const auto& [stream, fiber] : gpu.streams_) {
       if (!onlyBlockingStreams || stream.isBlocking) {
         LOG_TRACE("[cusan]        happens after " << stream.handle)
@@ -208,7 +214,7 @@ class Runtime {
   }
 
   void happens_after_stream(Stream stream) {
-    auto& gpu = get_device(current_gpu_);
+    auto& gpu = get_device(current_device_);
 
     auto search_result = gpu.streams_.find(stream);
     assert(search_result != gpu.streams_.end() && "Tried using stream that wasn't created prior");
@@ -218,13 +224,13 @@ class Runtime {
 
   void record_event(Event event, Stream stream) {
     LOG_TRACE("[cusan]    Record event: " << event << " stream:" << stream.handle);
-    auto& gpu          = get_device(current_gpu_);
+    auto& gpu          = get_device(current_device_);
     gpu.events_[event] = stream;
   }
 
   // Sync the event on the current stream
   void sync_event(Event event) {
-    auto& gpu = get_device(current_gpu_);
+    auto& gpu = get_device(current_device_);
 
     auto search_result = gpu.events_.find(event);
     assert(search_result != gpu.events_.end() && "Tried using event that wasn't recorded to prior");
@@ -233,13 +239,13 @@ class Runtime {
   }
 
   void insert_allocation(void* ptr, AllocationInfo info) {
-    auto& gpu = get_device(current_gpu_);
+    auto& gpu = get_device(current_device_);
     assert(gpu.allocations_.find(ptr) == gpu.allocations_.end() && "Registered an allocation multiple times");
     gpu.allocations_[ptr] = info;
   }
 
   void free_allocation(void* ptr, bool must_exist = true) {
-    auto& gpu  = get_device(current_gpu_);
+    auto& gpu  = get_device(current_device_);
     bool found = gpu.allocations_.find(ptr) != gpu.allocations_.end();
     if (must_exist) {
       assert(found && "Tried to delete a non existent allocation");
@@ -250,7 +256,7 @@ class Runtime {
   }
 
   AllocationInfo* get_allocation_info(const void* ptr) {
-    auto& gpu = get_device(current_gpu_);
+    auto& gpu = get_device(current_device_);
     auto res  = gpu.allocations_.find(ptr);
     if (res == gpu.allocations_.end()) {
       // fallback find if it lies within a region
@@ -534,6 +540,17 @@ void _cusan_event_query(Event event, unsigned int err) {
     LOG_TRACE("[cusan]    syncing")
     runtime.sync_event(event);
   }
+}
+
+void _cusan_set_device(DeviceID device) {
+  Runtime::get().set_device(device);
+}
+
+void _cusan_choose_device(DeviceID* device) {
+  // does this function ever return a nullptr?
+  // and what would that mean
+  assert(device);
+  Runtime::get().set_device(*device);
 }
 
 void _cusan_memset_async_impl(void* target, size_t count, RawStream stream) {

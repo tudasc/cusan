@@ -212,6 +212,8 @@ BasicInstrumenterDecl(CudaMallocManaged);
 BasicInstrumenterDecl(CudaMalloc);
 BasicInstrumenterDecl(CudaFree);
 BasicInstrumenterDecl(CudaMallocPitch);
+BasicInstrumenterDecl(CudaSetDevice);
+BasicInstrumenterDecl(CudaChooseDevice);
 
 class CudaStreamQuery : public SimpleInstrumenter<CudaStreamQuery> {
  public:

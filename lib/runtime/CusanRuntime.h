@@ -85,6 +85,10 @@ void _cusan_device_alloc(void** ptr, size_t size);
 void _cusan_device_free(void* ptr);
 void _cusan_stream_query(RawStream stream, unsigned int err);
 void _cusan_event_query(Event event, unsigned int err);
+
+void _cusan_set_device(DeviceID device);
+void _cusan_choose_device(DeviceID* device);
+
 #ifdef __cplusplus
 }
 #endif
