@@ -79,78 +79,40 @@ struct PointerAccess {
 class Runtime;
 
 class Device {
-  friend Runtime;
   // NOTE: assumed to be a ordered map so we can iterate in ascending order
   std::map<const void*, AllocationInfo> allocations_;
   std::map<Stream, TsanFiber> streams_;
   std::map<Event, Stream> events_;
-
-  Device() {
-    // every device has a default stream
-  }
-};
-
-class Runtime {
-  std::map<int32_t, Device> devices_;
-  int32_t current_device_;
   TsanFiber cpu_fiber_;
   TsanFiber curr_fiber_;
-  bool init_;
 
  public:
   static constexpr Stream kDefaultStream = Stream();
   Recorder stats_recorder;
 
-  static Runtime& get() {
-    static Runtime run_t;
-    if (!run_t.init_) {
-      run_t.current_device_ = get_current_device();
-      run_t.cpu_fiber_   = TsanGetCurrentFiber();
-      run_t.devices_.insert({run_t.current_device_, {}});
-      { run_t.register_stream(kDefaultStream); }
-      run_t.init_ = true;
-    }
-    return run_t;
-  }
-
-  Runtime(const Runtime&) = delete;
-
-  void operator=(const Runtime&) = delete;
-
-  Device& get_device(DeviceID id) {
-    if (devices_.find(id) == devices_.end()) {
-      devices_.insert({id, {}});
-    }
-    return devices_.at(id);
-  }
-
-  void set_device(DeviceID device){
-    if (devices_.find(device) == devices_.end()) {
-      devices_.insert({device, {}});
-    }
-    current_device_ = device;
+  Device() {
+    // every device has a default stream
+    { register_stream(Device::kDefaultStream); }
+    cpu_fiber_ = TsanGetCurrentFiber();
   }
 
   [[nodiscard]] const std::map<const void*, AllocationInfo>& get_allocations() {
-    return get_device(current_device_).allocations_;
+    return allocations_;
   }
 
   void happens_before() {
     LOG_TRACE("[cusan]    HappensBefore of curr fiber")
-    auto& gpu = get_device(current_device_);
     TsanHappensBefore(curr_fiber_);
     stats_recorder.inc_TsanHappensBefore();
   }
 
   void switch_to_cpu() {
     LOG_TRACE("[cusan]    Switch to cpu")
-    auto& gpu = get_device(current_device_);
-
-    auto search_result = gpu.streams_.find(Runtime::kDefaultStream);
-    assert(search_result != gpu.streams_.end() && "Tried using stream that wasn't created prior");
+    auto search_result = streams_.find(Device::kDefaultStream);
+    assert(search_result != streams_.end() && "Tried using stream that wasn't created prior");
     if (curr_fiber_ == search_result->second) {
       LOG_TRACE("[cusan]        syncing all other blocking GPU streams to run after since its default stream")
-      for (const auto& [s, sync_var] : gpu.streams_) {
+      for (const auto& [s, sync_var] : streams_) {
         if (s.isBlocking && !s.isDefaultStream()) {
           LOG_TRACE("[cusan]        happens before " << s.handle)
           TsanHappensBefore(sync_var);
@@ -166,31 +128,28 @@ class Runtime {
   }
 
   void register_stream(Stream stream) {
-    auto& gpu = get_device(current_device_);
-
     static uint32_t n_streams = 0;
-    auto search_result        = gpu.streams_.find(stream);
-    assert(search_result == gpu.streams_.end() && "Registered stream twice");
+    auto search_result        = streams_.find(stream);
+    assert(search_result == streams_.end() && "Registered stream twice");
     TsanFiber fiber = TsanCreateFiber(0);
     stats_recorder.inc_TsanCreateFiber();
     char name[32];
     snprintf(name, 32, "cuda_stream %u", n_streams++);
     TsanSetFiberName(fiber, name);
-    gpu.streams_.insert({stream, fiber});
+    streams_.insert({stream, fiber});
   }
 
   void switch_to_stream(Stream stream) {
     LOG_TRACE("[cusan]    Switching to stream: " << stream.handle)
-    auto& gpu          = get_device(current_device_);
-    auto search_result = gpu.streams_.find(stream);
-    assert(search_result != gpu.streams_.end() && "Tried using stream that wasn't created prior");
+    auto search_result = streams_.find(stream);
+    assert(search_result != streams_.end() && "Tried using stream that wasn't created prior");
     TsanSwitchToFiber(search_result->second, 0);
     stats_recorder.inc_TsanSwitchToFiber();
     if (search_result->first.isDefaultStream()) {
       LOG_TRACE("[cusan]        syncing all other blocking GPU streams since its default stream")
       // then we are on the default stream and as such want to synchronize behind all other streams
       // unless they are nonBlocking
-      for (auto& [s, sync_var] : gpu.streams_) {
+      for (auto& [s, sync_var] : streams_) {
         if (s.isBlocking && !s.isDefaultStream()) {
           LOG_TRACE("[cusan]        happens after " << s.handle)
           TsanHappensAfter(sync_var);
@@ -203,8 +162,7 @@ class Runtime {
 
   void happens_after_all_streams(bool onlyBlockingStreams = false) {
     LOG_TRACE("[cusan]    happens_after_all_streams but only blocking ones: " << onlyBlockingStreams)
-    auto& gpu = get_device(current_device_);
-    for (const auto& [stream, fiber] : gpu.streams_) {
+    for (const auto& [stream, fiber] : streams_) {
       if (!onlyBlockingStreams || stream.isBlocking) {
         LOG_TRACE("[cusan]        happens after " << stream.handle)
         TsanHappensAfter(fiber);
@@ -214,51 +172,43 @@ class Runtime {
   }
 
   void happens_after_stream(Stream stream) {
-    auto& gpu = get_device(current_device_);
-
-    auto search_result = gpu.streams_.find(stream);
-    assert(search_result != gpu.streams_.end() && "Tried using stream that wasn't created prior");
+    auto search_result = streams_.find(stream);
+    assert(search_result != streams_.end() && "Tried using stream that wasn't created prior");
     TsanHappensAfter(search_result->second);
     stats_recorder.inc_TsanHappensAfter();
   }
 
   void record_event(Event event, Stream stream) {
     LOG_TRACE("[cusan]    Record event: " << event << " stream:" << stream.handle);
-    auto& gpu          = get_device(current_device_);
-    gpu.events_[event] = stream;
+    events_[event] = stream;
   }
 
   // Sync the event on the current stream
   void sync_event(Event event) {
-    auto& gpu = get_device(current_device_);
-
-    auto search_result = gpu.events_.find(event);
-    assert(search_result != gpu.events_.end() && "Tried using event that wasn't recorded to prior");
-    LOG_TRACE("[cusan]    Sync event: " << event << " recorded on stream:" << gpu.events_[event].handle)
-    happens_after_stream(gpu.events_[event]);
+    auto search_result = events_.find(event);
+    assert(search_result != events_.end() && "Tried using event that wasn't recorded to prior");
+    LOG_TRACE("[cusan]    Sync event: " << event << " recorded on stream:" << events_[event].handle)
+    happens_after_stream(events_[event]);
   }
 
   void insert_allocation(void* ptr, AllocationInfo info) {
-    auto& gpu = get_device(current_device_);
-    assert(gpu.allocations_.find(ptr) == gpu.allocations_.end() && "Registered an allocation multiple times");
-    gpu.allocations_[ptr] = info;
+    assert(allocations_.find(ptr) == allocations_.end() && "Registered an allocation multiple times");
+    allocations_[ptr] = info;
   }
 
   void free_allocation(void* ptr, bool must_exist = true) {
-    auto& gpu  = get_device(current_device_);
-    bool found = gpu.allocations_.find(ptr) != gpu.allocations_.end();
+    bool found = allocations_.find(ptr) != allocations_.end();
     if (must_exist) {
       assert(found && "Tried to delete a non existent allocation");
     }
     if (found) {
-      gpu.allocations_.erase(ptr);
+      allocations_.erase(ptr);
     }
   }
 
   AllocationInfo* get_allocation_info(const void* ptr) {
-    auto& gpu = get_device(current_device_);
-    auto res  = gpu.allocations_.find(ptr);
-    if (res == gpu.allocations_.end()) {
+    auto res = allocations_.find(ptr);
+    if (res == allocations_.end()) {
       // fallback find if it lies within a region
       // for(auto [alloc_ptr, alloc_info]: allocations_){
       //   if(alloc_ptr < ptr && ((const char*)alloc_ptr) + alloc_info.size > ptr){
@@ -270,10 +220,7 @@ class Runtime {
     return &res->second;
   }
 
- private:
-  Runtime() = default;
-
-  ~Runtime() {
+  void output_statistics() {
 #undef cusan_stat_handle
 #define cusan_stat_handle(name) table.put(Row::make(#name, stats_recorder.get_##name()));
 #if CUSAN_SOFTCOUNTER
@@ -295,6 +242,56 @@ class Runtime {
 #endif
 #undef cusan_stat_handle
 #undef CUSAN_CUDA_EVENT_LIST
+  }
+};
+
+class Runtime {
+  std::map<int32_t, Device> devices_;
+  int32_t current_device_;
+  bool init_;
+
+ public:
+  static Runtime& get() {
+    static Runtime run_t;
+    if (!run_t.init_) {
+      run_t.current_device_ = get_current_device_id();
+      run_t.devices_.insert({run_t.current_device_, {}});
+      run_t.init_ = true;
+    }
+    return run_t;
+  }
+
+  Runtime(const Runtime&) = delete;
+
+  void operator=(const Runtime&) = delete;
+
+  Device& get_current_device() {
+    return devices_.at(current_device_);
+  }
+
+  Device& get_device(DeviceID id) {
+    if (devices_.find(id) == devices_.end()) {
+      devices_.insert({id, {}});
+    }
+    return devices_.at(id);
+  }
+
+  void set_device(DeviceID device) {
+    if (devices_.find(device) == devices_.end()) {
+      devices_.insert({device, {}});
+    }
+    current_device_ = device;
+  }
+
+ private:
+  Runtime() = default;
+
+  ~Runtime() {
+#if CUSAN_SOFTCOUNTER
+  for(auto& [_, device]: devices_){
+    device.output_statistics();
+  }
+#endif
 
 #ifdef CUSAN_FIBERPOOL
     // TsanFiberPoolFini();
@@ -308,7 +305,7 @@ using namespace cusan::runtime;
 
 namespace helper {
 #ifndef CUSAN_TYPEART
-inline std::optional<size_t> find_memory_alloc_size(Runtime& runtime, const void* ptr) {
+inline std::optional<size_t> find_memory_alloc_size(Device& runtime, const void* ptr) {
   const auto& allocs = runtime.get_allocations();
 
   // if there exists any allocation
@@ -335,7 +332,7 @@ inline std::optional<size_t> find_memory_alloc_size(Runtime& runtime, const void
   return {};
 }
 #else
-inline std::optional<size_t> find_memory_alloc_size(const Runtime&, const void* ptr) {
+inline std::optional<size_t> find_memory_alloc_size(const Device&, const void* ptr) {
   size_t alloc_size{0};
   int alloc_id{0};
   auto query_status = typeart_get_type(ptr, &alloc_id, &alloc_size);
@@ -354,7 +351,7 @@ inline std::optional<size_t> find_memory_alloc_size(const Runtime&, const void* 
 
 void _cusan_kernel_register(void** kernel_args, short* modes, int n, RawStream stream) {
   LOG_TRACE("[cusan]Kernel Register with " << n << " Args and on stream:" << stream)
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
 
   llvm::SmallVector<size_t, 4> sizes;
   for (int i = 0; i < n; ++i) {
@@ -403,21 +400,21 @@ void _cusan_kernel_register(void** kernel_args, short* modes, int n, RawStream s
 
 void _cusan_sync_device() {
   LOG_TRACE("[cusan]Sync Device\n")
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_sync_device_calls();
   runtime.happens_after_all_streams();
 }
 
 void _cusan_event_record(Event event, RawStream stream) {
   LOG_TRACE("[cusan]Event Record")
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_event_record_calls();
   runtime.record_event(event, Stream(stream));
 }
 
 void _cusan_sync_stream(RawStream raw_stream) {
   LOG_TRACE("[cusan]Sync Stream" << raw_stream)
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_sync_stream_calls();
   const auto stream = Stream(raw_stream);
   if (stream.isDefaultStream()) {
@@ -431,28 +428,28 @@ void _cusan_sync_stream(RawStream raw_stream) {
 
 void _cusan_sync_event(Event event) {
   LOG_TRACE("[cusan]Sync Event" << event)
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_sync_event_calls();
   runtime.sync_event(event);
 }
 
 void _cusan_create_event(Event*) {
   LOG_TRACE("[cusan]create event")
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_create_event_calls();
 }
 
 void _cusan_create_stream(RawStream* stream, cusan_StreamCreateFlags flags) {
   LOG_TRACE("[cusan]create stream with flags: " << flags
                                                 << " isNonBlocking: " << (bool)(flags & cusan_StreamFlagsNonBlocking))
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_create_stream_calls();
   runtime.register_stream(Stream(*stream, !(bool)(flags & cusan_StreamFlagsNonBlocking)));
 }
 
 void _cusan_stream_wait_event(RawStream stream, Event event, unsigned int) {
   LOG_TRACE("[cusan]StreamWaitEvent stream:" << stream << " on event:" << event)
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_stream_wait_event_calls();
   runtime.switch_to_stream(Stream(stream));
   runtime.sync_event(event);
@@ -464,7 +461,7 @@ void _cusan_host_alloc(void** ptr, size_t size, unsigned int) {
   // at least based of this presentation and some comments in the cuda forums this syncs the whole device
   //  https://developer.download.nvidia.com/CUDA/training/StreamsAndConcurrencyWebinar.pdf
   LOG_TRACE("[cusan]host alloc " << *ptr << " with size " << size)
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_host_alloc_calls();
   // runtime.happens_after_all_streams();
 
@@ -473,27 +470,27 @@ void _cusan_host_alloc(void** ptr, size_t size, unsigned int) {
 
 void _cusan_host_free(void* ptr) {
   LOG_TRACE("[cusan]host free")
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_host_free_calls();
   runtime.free_allocation(ptr);
 }
 
 void _cusan_host_register(void* ptr, size_t size, unsigned int) {
   LOG_TRACE("[cusan]host register " << ptr << " with size:" << size);
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_host_register_calls();
   runtime.insert_allocation(ptr, AllocationInfo::Pinned(size));
 }
 void _cusan_host_unregister(void* ptr) {
   LOG_TRACE("[cusan]host unregister " << ptr);
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_host_unregister_calls();
   runtime.free_allocation(ptr);
 }
 
 void _cusan_managed_alloc(void** ptr, size_t size, unsigned int) {
   LOG_TRACE("[cusan]Managed host alloc " << *ptr << " with size " << size << " -> implicit device sync")
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_managed_alloc_calls();
   runtime.happens_after_all_streams();
   runtime.insert_allocation(*ptr, AllocationInfo::Managed(size));
@@ -503,7 +500,7 @@ void _cusan_device_alloc(void** ptr, size_t size) {
   // implicit syncs device
   // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#stream-ordered-memory-allocator
   LOG_TRACE("[cusan]Device alloc " << *ptr << " with size " << size << " -> implicit device sync")
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_device_alloc_calls();
 
   runtime.insert_allocation(*ptr, AllocationInfo::Device(size));
@@ -514,7 +511,7 @@ void _cusan_device_free(void* ptr) {
   // implicit syncs device
   // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#stream-ordered-memory-allocator
   LOG_TRACE("[cusan]Device free " << ptr << " -> TODO maybe implicit device sync")
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_device_free_calls();
   runtime.happens_after_all_streams();
 }
@@ -522,7 +519,7 @@ void _cusan_device_free(void* ptr) {
 // TODO: get rid of cudaSpecifc check for cudaSuccess 0
 void _cusan_stream_query(RawStream stream, unsigned int err) {
   LOG_TRACE("[cusan] Stream query " << stream << " -> " << err)
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_stream_query_calls();
   if (err == 0) {
     LOG_TRACE("[cusan]    syncing")
@@ -534,7 +531,7 @@ void _cusan_stream_query(RawStream stream, unsigned int err) {
 // TODO: get rid of cudaSpecifc check for cudaSuccess 0
 void _cusan_event_query(Event event, unsigned int err) {
   LOG_TRACE("[cusan] Event query " << event << " -> " << err)
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_event_query_calls();
   if (err == 0) {
     LOG_TRACE("[cusan]    syncing")
@@ -555,7 +552,7 @@ void _cusan_choose_device(DeviceID* device) {
 
 void _cusan_memset_async_impl(void* target, size_t count, RawStream stream) {
   // The Async versions are always asynchronous with respect to the host.
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_memset_async_calls();
   runtime.switch_to_stream(Stream(stream));
   TsanMemoryWritePC(target, count, __builtin_return_address(0));
@@ -566,9 +563,9 @@ void _cusan_memset_async_impl(void* target, size_t count, RawStream stream) {
 void _cusan_memset_impl(void* target, size_t count) {
   // The cudaMemset functions are asynchronous with respect to the host except when the target memory is pinned host
   // memory.
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_memset_calls();
-  runtime.switch_to_stream(Runtime::kDefaultStream);
+  runtime.switch_to_stream(Device::kDefaultStream);
   LOG_TRACE("[cusan]    " << "Write to " << target << " with size: " << count)
   TsanMemoryWritePC(target, count, __builtin_return_address(0));
   runtime.stats_recorder.inc_TsanMemoryWrite();
@@ -579,7 +576,7 @@ void _cusan_memset_impl(void* target, size_t count) {
   // if we couldn't find alloc info we just assume the worst and don't sync
   if ((alloc_info && (alloc_info->is_pinned || alloc_info->is_managed)) || CUSAN_SYNC_DETAIL_LEVEL == 0) {
     LOG_TRACE("[cusan]    " << "Memset is blocking")
-    runtime.happens_after_stream(Runtime::kDefaultStream);
+    runtime.happens_after_stream(Device::kDefaultStream);
   } else {
     LOG_TRACE("[cusan]    " << "Memset is not blocking")
     if (!alloc_info) {
@@ -611,7 +608,7 @@ void _cusan_memset_async(void* target, size_t count, RawStream stream) {
 
 void _cusan_memcpy_async_impl(void* target, size_t write_size, const void* from, size_t read_size,
                               cusan_MemcpyKind kind, RawStream stream) {
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_memcpy_async_calls();
   if (kind == cusan_MemcpyHostToHost && CUSAN_SYNC_DETAIL_LEVEL == 1) {
     // 2. For transfers from any host memory to any host memory, the function is fully synchronous with respect to the
@@ -649,23 +646,23 @@ void _cusan_memcpy_impl(void* target, size_t write_size, const void* from, size_
     kind = infer_memcpy_direction(target, from);
   }
 
-  auto& runtime = Runtime::get();
+  auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_memcpy_calls();
   if (CUSAN_SYNC_DETAIL_LEVEL == 0) {
     LOG_TRACE("[cusan]   DefaultStream+Blocking")
     // In this mode: Memcpy always blocks, no detailed view w.r.t. memory direction
-    runtime.switch_to_stream(Runtime::kDefaultStream);
+    runtime.switch_to_stream(Device::kDefaultStream);
     TsanMemoryReadPC(from, read_size, __builtin_return_address(0));
     runtime.stats_recorder.inc_TsanMemoryRead();
     TsanMemoryWritePC(target, write_size, __builtin_return_address(0));
     runtime.stats_recorder.inc_TsanMemoryWrite();
     runtime.happens_before();
     runtime.switch_to_cpu();
-    runtime.happens_after_stream(Runtime::kDefaultStream);
+    runtime.happens_after_stream(Device::kDefaultStream);
   } else if (kind == cusan_MemcpyDeviceToDevice) {
     // 4. For transfers from device memory to device memory, no host-side synchronization is performed.
     LOG_TRACE("[cusan]   DefaultStream")
-    runtime.switch_to_stream(Runtime::kDefaultStream);
+    runtime.switch_to_stream(Device::kDefaultStream);
     TsanMemoryReadPC(from, read_size, __builtin_return_address(0));
     runtime.stats_recorder.inc_TsanMemoryRead();
     TsanMemoryWritePC(target, write_size, __builtin_return_address(0));
@@ -675,14 +672,14 @@ void _cusan_memcpy_impl(void* target, size_t write_size, const void* from, size_
     // 3. For transfers from device to either pageable or pinned host memory, the function returns only once the copy
     // has completed.
     LOG_TRACE("[cusan]   DefaultStream+Blocking")
-    runtime.switch_to_stream(Runtime::kDefaultStream);
+    runtime.switch_to_stream(Device::kDefaultStream);
     TsanMemoryReadPC(from, read_size, __builtin_return_address(0));
     runtime.stats_recorder.inc_TsanMemoryRead();
     TsanMemoryWritePC(target, write_size, __builtin_return_address(0));
     runtime.stats_recorder.inc_TsanMemoryWrite();
     runtime.happens_before();
     runtime.switch_to_cpu();
-    runtime.happens_after_stream(Runtime::kDefaultStream);
+    runtime.happens_after_stream(Device::kDefaultStream);
   } else if (kind == cusan_MemcpyHostToDevice) {
     // 1. For transfers from pageable host memory to device memory, a stream sync is performed before the copy is
     // initiated.
@@ -690,7 +687,7 @@ void _cusan_memcpy_impl(void* target, size_t write_size, const void* from, size_
     auto* alloc_info = runtime.get_allocation_info(from);
     // if we couldn't find alloc info we just assume the worst and don't sync
     if (alloc_info && !alloc_info->is_pinned) {
-      runtime.happens_after_stream(Runtime::kDefaultStream);
+      runtime.happens_after_stream(Device::kDefaultStream);
       LOG_TRACE("[cusan]   DefaultStream+Blocking")
     } else {
       LOG_TRACE("[cusan]   DefaultStream")
@@ -699,20 +696,20 @@ void _cusan_memcpy_impl(void* target, size_t write_size, const void* from, size_
     //   device memory
     TsanMemoryReadPC(from, read_size, __builtin_return_address(0));
     runtime.stats_recorder.inc_TsanMemoryRead();
-    runtime.switch_to_stream(Runtime::kDefaultStream);
+    runtime.switch_to_stream(Device::kDefaultStream);
     TsanMemoryWritePC(target, write_size, __builtin_return_address(0));
     runtime.stats_recorder.inc_TsanMemoryWrite();
     runtime.happens_before();
     runtime.switch_to_cpu();
-    runtime.happens_after_stream(Runtime::kDefaultStream);
+    runtime.happens_after_stream(Device::kDefaultStream);
   } else if (kind == cusan_MemcpyHostToHost) {
     // 5. For transfers from any host memory to any host memory, the function is fully synchronous with respect to the
     // host.
     LOG_TRACE("[cusan]   DefaultStream+Blocking")
-    runtime.switch_to_stream(Runtime::kDefaultStream);
+    runtime.switch_to_stream(Device::kDefaultStream);
     runtime.happens_before();
     runtime.switch_to_cpu();
-    runtime.happens_after_stream(Runtime::kDefaultStream);
+    runtime.happens_after_stream(Device::kDefaultStream);
     TsanMemoryReadPC(from, read_size, __builtin_return_address(0));
     runtime.stats_recorder.inc_TsanMemoryRead();
     TsanMemoryWritePC(target, write_size, __builtin_return_address(0));

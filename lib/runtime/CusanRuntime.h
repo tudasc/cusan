@@ -36,7 +36,7 @@ using Event     = const void*;
 using RawStream = const void*;
 using DeviceID = int;
 cusan_MemcpyKind infer_memcpy_direction(const void* target, const void* from);
-DeviceID get_current_device();
+DeviceID get_current_device_id();
 }  // namespace cusan::runtime
 using cusan::runtime::Event;
 using cusan::runtime::RawStream;

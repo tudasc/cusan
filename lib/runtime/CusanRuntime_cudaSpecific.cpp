@@ -13,7 +13,7 @@ namespace cusan::runtime {
 
 
 
-DeviceID get_current_device(){
+DeviceID get_current_device_id(){
   DeviceID res;
   cudaGetDevice(&res);
   return res;

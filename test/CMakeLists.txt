@@ -72,7 +72,7 @@ function(cusan_add_lit_target)
       set(TARGET_NAME check-cusan-${suite})
     endif()
 
-    if(NOT EXISTS ${SUITE_PATH} AND NOT ${suite} STREQUAL "staging")
+    if(NOT EXISTS ${SUITE_PATH} AND NOT ${suite} STREQUAL "staging" AND NOT ${suite} STREQUAL "multi_gpu")
       message(WARNING "Could not find suitable lit test target at ${SUITE_PATH}")
       continue()
     endif()
@@ -105,6 +105,7 @@ set(CUSAN_SUITES
   pass
   kernel_analysis
   staging
+  multi_gpu
 )
 
 include(ProcessorCount)
@@ -118,6 +119,7 @@ set(CUSAN_SUITES_WORKERS
   1
   ${NUM_CPU}
   ${NUM_CPU}
+  1
   1
 )
 
