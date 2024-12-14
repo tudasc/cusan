@@ -1,8 +1,8 @@
 // clang-format off
-// RUN: %wrapper-cc %clang_args0 %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
+// RUN: %wrapper-cc %clang_args0 -x cuda %s -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
 // RUN: %cusan_ldpreload %tsan-options %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s
 
-// RUN: %wrapper-cc -DCUSAN_SYNC %clang_args0 %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
+// RUN: %wrapper-cc -DCUSAN_SYNC %clang_args0 -x cuda %s -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
 // RUN: %cusan_ldpreload %tsan-options %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
 
 // clang-format on
