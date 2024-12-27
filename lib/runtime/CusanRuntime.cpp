@@ -82,7 +82,6 @@ class Device {
   // NOTE: assumed to be a ordered map so we can iterate in ascending order
   std::map<const void*, AllocationInfo> allocations_;
   std::map<Stream, TsanFiber> streams_;
-  std::map<Event, Stream> events_;
   TsanFiber cpu_fiber_;
   TsanFiber curr_fiber_;
 
@@ -90,7 +89,7 @@ class Device {
   static constexpr Stream kDefaultStream = Stream();
   Recorder stats_recorder;
 
-  Device() {
+  Device() : stats_recorder() {
     // every device has a default stream
     { register_stream(Device::kDefaultStream); }
     cpu_fiber_ = TsanGetCurrentFiber();
@@ -98,6 +97,10 @@ class Device {
 
   [[nodiscard]] const std::map<const void*, AllocationInfo>& get_allocations() {
     return allocations_;
+  }
+
+  [[nodiscard]] TsanFiber get_stream_fiber(Stream stream) {
+    return streams_[stream];
   }
 
   void happens_before() {
@@ -178,19 +181,6 @@ class Device {
     stats_recorder.inc_TsanHappensAfter();
   }
 
-  void record_event(Event event, Stream stream) {
-    LOG_TRACE("[cusan]    Record event: " << event << " stream:" << stream.handle);
-    events_[event] = stream;
-  }
-
-  // Sync the event on the current stream
-  void sync_event(Event event) {
-    auto search_result = events_.find(event);
-    assert(search_result != events_.end() && "Tried using event that wasn't recorded to prior");
-    LOG_TRACE("[cusan]    Sync event: " << event << " recorded on stream:" << events_[event].handle)
-    happens_after_stream(events_[event]);
-  }
-
   void insert_allocation(void* ptr, AllocationInfo info) {
     assert(allocations_.find(ptr) == allocations_.end() && "Registered an allocation multiple times");
     allocations_[ptr] = info;
@@ -224,7 +214,7 @@ class Device {
 #undef cusan_stat_handle
 #define cusan_stat_handle(name) table.put(Row::make(#name, stats_recorder.get_##name()));
 #if CUSAN_SOFTCOUNTER
-    Table table{"Cusan runtime statistics"};
+    Table table{"Cusan device statistics"};
 #ifdef CUSAN_FIBERPOOL
     table.put(Row::make("Fiberpool", 1));
 #else
@@ -247,6 +237,7 @@ class Device {
 
 class Runtime {
   std::map<int32_t, Device> devices_;
+  std::map<Event, std::pair<TsanFiber, Device*>> events_;
   int32_t current_device_;
   bool init_;
 
@@ -255,7 +246,7 @@ class Runtime {
     static Runtime run_t;
     if (!run_t.init_) {
       run_t.current_device_ = get_current_device_id();
-      run_t.devices_.insert({run_t.current_device_, {}});
+      run_t.devices_[run_t.current_device_];
       run_t.init_ = true;
     }
     return run_t;
@@ -271,16 +262,30 @@ class Runtime {
 
   Device& get_device(DeviceID id) {
     if (devices_.find(id) == devices_.end()) {
-      devices_.insert({id, {}});
+      devices_[id];
     }
     return devices_.at(id);
   }
 
   void set_device(DeviceID device) {
     if (devices_.find(device) == devices_.end()) {
-      devices_.insert({device, {}});
+      devices_[device];
     }
     current_device_ = device;
+  }
+
+  void record_event(Event event, Stream stream) {
+    LOG_TRACE("[cusan]    Record event: " << event << " stream:" << stream.handle);
+    auto& current_device = get_current_device();
+    auto search_result   = current_device.get_stream_fiber(stream);
+    events_.insert({event, {search_result, &current_device}});
+  }
+
+  // Sync the event on the current stream
+  void sync_event(Event event) {
+    auto [stream_fiber, device] = events_[event];
+    TsanHappensAfter(stream_fiber);
+    device->stats_recorder.inc_TsanHappensAfter();
   }
 
  private:
@@ -288,9 +293,9 @@ class Runtime {
 
   ~Runtime() {
 #if CUSAN_SOFTCOUNTER
-  for(auto& [_, device]: devices_){
-    device.output_statistics();
-  }
+    for (auto& [_, device] : devices_) {
+      device.output_statistics();
+    }
 #endif
 
 #ifdef CUSAN_FIBERPOOL
@@ -407,8 +412,9 @@ void _cusan_sync_device() {
 
 void _cusan_event_record(Event event, RawStream stream) {
   LOG_TRACE("[cusan]Event Record")
-  auto& runtime = Runtime::get().get_current_device();
-  runtime.stats_recorder.inc_event_record_calls();
+  auto& runtime = Runtime::get();
+  auto& device  = runtime.get_current_device();
+  device.stats_recorder.inc_event_record_calls();
   runtime.record_event(event, Stream(stream));
 }
 
@@ -428,8 +434,9 @@ void _cusan_sync_stream(RawStream raw_stream) {
 
 void _cusan_sync_event(Event event) {
   LOG_TRACE("[cusan]Sync Event" << event)
-  auto& runtime = Runtime::get().get_current_device();
-  runtime.stats_recorder.inc_sync_event_calls();
+  auto& runtime = Runtime::get();
+  auto& device  = runtime.get_current_device();
+  device.stats_recorder.inc_sync_event_calls();
   runtime.sync_event(event);
 }
 
@@ -449,12 +456,13 @@ void _cusan_create_stream(RawStream* stream, cusan_StreamCreateFlags flags) {
 
 void _cusan_stream_wait_event(RawStream stream, Event event, unsigned int) {
   LOG_TRACE("[cusan]StreamWaitEvent stream:" << stream << " on event:" << event)
-  auto& runtime = Runtime::get().get_current_device();
-  runtime.stats_recorder.inc_stream_wait_event_calls();
-  runtime.switch_to_stream(Stream(stream));
+  auto& runtime = Runtime::get();
+  auto& device  = runtime.get_current_device();
+  device.stats_recorder.inc_stream_wait_event_calls();
+  device.switch_to_stream(Stream(stream));
   runtime.sync_event(event);
-  runtime.happens_before();
-  runtime.switch_to_cpu();
+  device.happens_before();
+  device.switch_to_cpu();
 }
 
 void _cusan_host_alloc(void** ptr, size_t size, unsigned int) {
@@ -516,23 +524,21 @@ void _cusan_device_free(void* ptr) {
   runtime.happens_after_all_streams();
 }
 
-// TODO: get rid of cudaSpecifc check for cudaSuccess 0
 void _cusan_stream_query(RawStream stream, unsigned int err) {
   LOG_TRACE("[cusan] Stream query " << stream << " -> " << err)
   auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_stream_query_calls();
   if (err == 0) {
     LOG_TRACE("[cusan]    syncing")
-
     runtime.happens_after_stream(Stream{stream});
   }
 }
 
-// TODO: get rid of cudaSpecifc check for cudaSuccess 0
 void _cusan_event_query(Event event, unsigned int err) {
   LOG_TRACE("[cusan] Event query " << event << " -> " << err)
-  auto& runtime = Runtime::get().get_current_device();
-  runtime.stats_recorder.inc_event_query_calls();
+  auto& runtime = Runtime::get();
+  auto& device  = runtime.get_current_device();
+  device.stats_recorder.inc_event_query_calls();
   if (err == 0) {
     LOG_TRACE("[cusan]    syncing")
     runtime.sync_event(event);

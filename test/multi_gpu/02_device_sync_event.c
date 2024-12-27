@@ -13,7 +13,6 @@
 // CHECK-SYNC-NOT: data race
 // CHECK-SYNC-NOT: [Error] sync
 
-// XFAIL: *
 
 #include <cuda_runtime.h>
 #include <stdio.h>
