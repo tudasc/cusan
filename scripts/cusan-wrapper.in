@@ -70,15 +70,16 @@ function cusan_global_init_fn() {
 
   readonly cusan_includes="${cusan_include_dir}"
   if [ "@CUSAN_NEW_PM_REQUIRED@" == 1 ]; then
-    readonly cusan_plugin="-load-pass-plugin "${cusan_pass}" -O0"
+    readonly cusan_plugin="-load-pass-plugin "${cusan_pass}" -passes=cusan"
   else
-    readonly cusan_plugin="-load "${cusan_pass}" -O0"
+    readonly cusan_plugin="-load "${cusan_pass}" -cusan"
   fi
-  readonly cusan_cpu_mode=""
+  
+  cusan_cpu_mode=""
   if [ "${cusan_wrapper_emit_ir}" == 1 ]; then
-    readonly cusan_gpu_mode=""
+    cusan_gpu_mode=""
   else
-    readonly cusan_gpu_mode="" #"--cusan-quiet"
+    cusan_gpu_mode="" #"--cusan-quiet"
   fi
 
   readonly cusan_compiler="@CUSAN_COMPILER@"
@@ -369,7 +370,8 @@ function cusan_parse_cmd_line_fn() {
       if [ "@CUSAN_NEW_PM_REQUIRED@" == 1 ]; then
         export CUSAN_KERNEL_DATA_FILE="${1##--cusan-kernel-data=}"
       else
-        cusan_wrapper_more_args+=" $1"    
+        cusan_gpu_mode+=" $1"    
+        cusan_cpu_mode=" $1"
       fi
       shift
     ;;
@@ -482,8 +484,9 @@ function cusan_tu_out_fn() {
   if [ "${cusan_to_stdout}" == 0 ]; then
     local cusan_command_exe+=" -o ${out_file}"
   fi
-
+  echo "$@"
   $cusan_command_exe "$@"
+  echo fin
 }
 
 # shellcheck disable=SC2086
@@ -493,10 +496,10 @@ function cusan_compile_cuda_device_fn() {
   else
     local -r mem_to_reg_pass="-mem2reg"
   fi
-
+  # FIXME: remove mem2reg invocation for new PM
   $cusan_compiler ${cusan_wrapper_more_args} -gdwarf-4 ${cusan_includes} ${cusan_to_llvm_flags} \
     -fPIC -x cuda "${cusan_source_file}" --cuda-device-only --cuda-gpu-arch=${cusan_cuda_code_arch} -o - |
-    #cusan_opt_fn "${out_basename}"_cusan_gpu_mem2reg.ll ${mem_to_reg_pass} |
+    cusan_opt_fn "${out_basename}"_cusan_gpu_mem2reg.ll ${mem_to_reg_pass} |
     cusan_opt_fn "${out_basename}"_cusan_gpu.ll ${cusan_plugin} ${cusan_gpu_mode} |
     cusan_opt_fn "${out_basename}"_cusan_gpu_opt.ll ${cusan_optimize} |
     $cusan_llc_tool -dwarf-directory=0 -x=ir --relocation-model=pic -march=nvptx64 -mcpu=${cusan_cuda_code_arch} -mattr=+ptx64 \
@@ -512,8 +515,10 @@ function cusan_compile_cuda_device_fn() {
 }
 
 function cusan_to_llvm_ir_fn() {
+  
   cusan_compiler_fn "${out_basename}"_base.ll -gdwarf-4 ${cusan_wrapper_more_args} ${typeart_includes} ${cusan_includes} ${cusan_san_flags} \
     ${cusan_to_llvm_flags} ${cusan_to_llvm_more_flags} "${cusan_source_file}" -o -
+    
 }
 
 function cusan_compile_with_cusan_host_fn() {
@@ -531,9 +536,10 @@ function cusan_compile_host_with_typeart_fn() {
   # shellcheck disable=SC2086
   cusan_to_llvm_ir_fn |
     cusan_opt_fn "${out_basename}"_heap.ll ${typeart_plugin} ${typeart_heap_mode_args} ${typeart_cmdline_args_heap} |
-    cusan_compile_with_cusan_host_fn |
+    cusan_opt_fn "${out_basename}"_cusan_cpu.ll ${cusan_plugin} ${cusan_cpu_mode} |
+    cusan_opt_fn "${out_basename}"_opt.ll ${cusan_optimize} | 
     cusan_opt_fn "${out_basename}"_stack.ll ${typeart_plugin} ${typeart_stack_mode_args} ${typeart_cmdline_args_stack} |
-    cusan_tu_out_fn
+    opt -S
 }
 
 function cusan_main_compile_fn() {
@@ -568,6 +574,7 @@ function cusan_main_compile_fn() {
 }
 
 function cusan_main_driver_fn() {
+  
   cusan_global_init_fn
   cusan_global_cuda_init_fn
 

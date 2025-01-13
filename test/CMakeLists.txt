@@ -111,6 +111,8 @@ include(ProcessorCount)
 ProcessorCount(NUM_CPU)
 if(NUM_CPU EQUAL 0)
   set(NUM_CPU 1)
+elseif(NUM_CPU GREATER 8)
+  set(NUM_CPU 8)
 endif()
 
 set(CUSAN_SUITES_WORKERS

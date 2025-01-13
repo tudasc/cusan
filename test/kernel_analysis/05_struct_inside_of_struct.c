@@ -1,4 +1,5 @@
-// RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | \
+// clang-format off
+// RUN: %wrapper-cc %emit-host-only --cusan-kernel-data=%t.yaml -x cuda --cuda-gpu-arch=sm_72 %s 2>&1 | \
 // RUN: %filecheck %s
 
 // CHECK-NOT: Handling Arg:
@@ -23,6 +24,8 @@
 // CHECK-NOT: Handling Arg:
 
 // XFAIL: *
+
+// clang-format on
 
 #include "../support/gpu_mpi.h"
 

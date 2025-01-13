@@ -36,7 +36,7 @@ function cusan_global_init_fn() {
   readonly cusan_san_flags="@CUSAN_SAN_FLAG@"
 
   readonly cusan_includes="${cusan_include_dir}"
-  readonly cusan_plugin="-fpass-plugin="${cusan_pass}""
+  readonly cusan_plugin="-fpass-plugin="${cusan_pass}" -D__STRICT_ANSI__"
 
   readonly cusan_compiler="@CUSAN_COMPILER@"
 
@@ -60,7 +60,7 @@ function cusan_is_cusan_linking_fn() {
   return 1
 }
 
-function cusan_parse_cuda_cmd_line_fn() {
+function cusan_parse_commands_fn() {
   cusan_non_cuda_args=""
   cusan_found_cuda=0
   cusan_cuda_code_arch=""
@@ -120,52 +120,13 @@ function cusan_parse_cuda_cmd_line_fn() {
   set -- "cusan_non_cuda_args"
 }
 
-function cusan_parse_commands_fn() {
-  cusan_parse_cuda_cmd_line_fn "$@"
-}
-
-function cusan_parse_link_objects_fn() {
-  cusan_link_more_args=""
-  cusan_link_objs=""
-  cusan_cuda_link_objs=""
-
-  while (("$#")); do
-    case "$1" in
-      *.o)
-      cusan_link_objs="${cusan_link_objs} $1"
-      local object_dlink="${1%.*}_dlink.o"
-      if [ -f "${object_dlink}" ]; then
-        cusan_cuda_link_objs="${cusan_cuda_link_objs} ${object_dlink}"
-      fi
-      shift
-      ;;
-      *)
-      cusan_link_more_args+=" $1"
-      shift
-      ;;
-    esac
-  done
-
-}
-
-function cusan_main_link_fn() {
-  cusan_parse_link_objects_fn "$@"
-  if [ "$cusan_found_cuda" == 1 ]; then
-    cusan_link_objs="${cusan_link_objs} ${cusan_cuda_link_objs}"
-  fi
-  # shellcheck disable=SC2086 disable=SC2068
-  $cusan_compiler ${cusan_plugin} ${cusan_includes} ${cusan_link_more_args} ${cusan_ldflags} ${cusan_cuda_ldflags} ${cusan_san_flags} ${cusan_link_objs}
-}
-
 function cusan_main_driver_fn() {
-  set -x
   cusan_global_init_fn
   cusan_global_cuda_init_fn
 
   cusan_is_wrapper_disabled_fn
   readonly cusan_disabled=$?
-  cusan_skip_fn "$@"
-  if [ "$?" == 1 ] || [ "$cusan_disabled" == 1 ]; then
+  if [ "$cusan_disabled" == 1 ]; then
     # shellcheck disable=SC2068
     $cusan_compiler $@
     return 0
@@ -173,16 +134,17 @@ function cusan_main_driver_fn() {
 
   cusan_is_cusan_linking_fn "$@"
   local -r cusan_linking=$?
+  
   cusan_parse_commands_fn "$@"
 
   if [ "$cusan_found_cuda" == 1 ]; then
     local cusan_cuda_flags="--cuda-gpu-arch=${cusan_cuda_code_arch}"
   fi
+  
   if [ "$cusan_linking" == 1 ]; then
-    cusan_main_link_fn "${cusan_non_cuda_args} ${cusan_cuda_flags}"
-  else
-    $cusan_compiler ${cusan_plugin} ${cusan_includes} ${cusan_san_flags} ${cusan_cuda_flags} ${cusan_non_cuda_args}
+    cusan_cuda_flags+=" ${cusan_cuda_ldflags} ${cusan_ldflags}"
   fi
+  $cusan_compiler ${cusan_plugin} ${cusan_includes} ${cusan_san_flags} ${cusan_cuda_flags} ${cusan_non_cuda_args}
 }
 
 cusan_main_driver_fn "$@"

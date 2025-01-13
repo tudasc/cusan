@@ -28,6 +28,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
+#include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 
 #include <llvm/ADT/ArrayRef.h>
@@ -59,7 +60,7 @@ class LegacyCusanPass : public llvm::ModulePass {
  public:
   static char ID;  // NOLINT
 
-  LegacyCusanPass() : ModulePass(ID) {};
+  LegacyCusanPass() : ModulePass(ID){};
 
   bool runOnModule(llvm::Module& module) override;
 
@@ -121,7 +122,7 @@ bool CusanPass::runOnKernelFunc(llvm::Function& function) {
   if (function.isDeclaration()) {
     return false;
   }
-  LOG_DEBUG("[DEVICE] running on kernel: " << function.getName());
+  LOG_DEBUG("[Device] running on kernel: " << function.getName());
   auto data = device::analyze_device_kernel(&function);
   if (data) {
     if (!cl_cusan_quiet.getValue()) {
