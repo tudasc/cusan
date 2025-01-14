@@ -484,9 +484,8 @@ function cusan_tu_out_fn() {
   if [ "${cusan_to_stdout}" == 0 ]; then
     local cusan_command_exe+=" -o ${out_file}"
   fi
-  echo "$@"
+
   $cusan_command_exe "$@"
-  echo fin
 }
 
 # shellcheck disable=SC2086
@@ -515,7 +514,6 @@ function cusan_compile_cuda_device_fn() {
 }
 
 function cusan_to_llvm_ir_fn() {
-  
   cusan_compiler_fn "${out_basename}"_base.ll -gdwarf-4 ${cusan_wrapper_more_args} ${typeart_includes} ${cusan_includes} ${cusan_san_flags} \
     ${cusan_to_llvm_flags} ${cusan_to_llvm_more_flags} "${cusan_source_file}" -o -
     
@@ -536,10 +534,9 @@ function cusan_compile_host_with_typeart_fn() {
   # shellcheck disable=SC2086
   cusan_to_llvm_ir_fn |
     cusan_opt_fn "${out_basename}"_heap.ll ${typeart_plugin} ${typeart_heap_mode_args} ${typeart_cmdline_args_heap} |
-    cusan_opt_fn "${out_basename}"_cusan_cpu.ll ${cusan_plugin} ${cusan_cpu_mode} |
-    cusan_opt_fn "${out_basename}"_opt.ll ${cusan_optimize} | 
+    cusan_compile_with_cusan_host_fn |
     cusan_opt_fn "${out_basename}"_stack.ll ${typeart_plugin} ${typeart_stack_mode_args} ${typeart_cmdline_args_stack} |
-    opt -S
+    cusan_tu_out_fn
 }
 
 function cusan_main_compile_fn() {

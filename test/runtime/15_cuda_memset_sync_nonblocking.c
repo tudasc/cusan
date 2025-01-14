@@ -56,8 +56,9 @@ int main() {
   write_kernel_delay<<<blocksPerGrid, threadsPerBlock, 0, stream2>>>(managed_data2, size, 1);
   cudaStreamSynchronize(stream2);
   for (int i = 0; i < size; i++) {
-    if (managed_data[i] == 0) {
-      printf("[Error] sync %i\n", managed_data[i]);
+    const int data_i = managed_data[i];
+    if (data_i == 0) {
+      printf("[Error] sync\n");
       break;
     }
   }

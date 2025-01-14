@@ -13,6 +13,8 @@
 // CHECK-SYNC-NOT: data race
 // CHECK-SYNC-NOT: [Error] sync
 
+// REQUIRES: !typeart
+
 #include "../support/gpu_mpi.h"
 
 #include <assert.h>

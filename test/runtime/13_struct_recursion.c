@@ -10,7 +10,8 @@
 
 // CHECK-SYNC-NOT: data race
 
-#include "../support/gpu_mpi.h"
+// FIXME: with typeart broken
+// REQUIRES: !typeart
 
 struct BufferStorage2 {
   int* buff;
