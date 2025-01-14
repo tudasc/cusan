@@ -1,18 +1,16 @@
 // clang-format off
-// RUN: %wrapper-cxx %clang_args -x cuda %s -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
-// RUN: %tsan-options timeout 1 %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s
+//  RUN: %wrapper-cxx %clang_args -x cuda %s -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
+//  RUN: %tsan-options %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s
 
 // RUN: %wrapper-cxx -DCUSAN_SYNC %clang_args -x cuda %s -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
-// RUN: %tsan-options timeout 1 %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
+// RUN: %tsan-options %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
 // clang-format on
 
 // CHECK-DAG: data race
 
 // CHECK-SYNC-NOT: data race
 
-// XFAIL: *
-
-#include "../support/gpu_mpi.h"
+#include <stdio.h>
 
 struct BufferStorage {
   int* buff1;
@@ -37,12 +35,10 @@ int main(int argc, char* argv[]) {
 
   BufferStorage buffStor;
   cudaMallocManaged(&buffStor.buff1, size * sizeof(int));
-  /// cudaMallocManaged(&buffStor.buff2, sizeof(int*));
+  // cudaMallocManaged(&buffStor.buff2, sizeof(int*));
 
-  buffStor.buff2 = 0;
+  buffStor.buff2 = NULL;
 
-  // since we set the boolean argument to false buff2 could contain nullptrs since we don't use it
-  //  but the pass analyses based on the static code and so it doesn't know this runtime information
   kernel<<<blocksPerGrid, threadsPerBlock, 0>>>(buffStor, size, false);
 #ifdef CUSAN_SYNC
   cudaDeviceSynchronize();
@@ -56,6 +52,8 @@ int main(int argc, char* argv[]) {
   }
 
   cudaFree(buffStor.buff1);
-  cudaFree(buffStor.buff2);
+  if (buffStor.buff2 != NULL) {
+    cudaFree(buffStor.buff2);
+  }
   return 0;
 }

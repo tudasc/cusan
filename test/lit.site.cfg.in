@@ -29,7 +29,7 @@ config.cusan_runtime_dir = "@CUSAN_RUNTIME_DIR@"
 config.cusan_script_dir = "@CUSAN_SCRIPT_DIR@"
 config.cusan_pass = "$<TARGET_FILE_NAME:cusan::TransformPass>"
 config.cusan_mpi_interceptor = "$<TARGET_FILE:cusan::MPI_Interceptor>"
-
+config.cusan_use_workarounds = @CUSAN_TEST_WORKAROUND@
 
 # Let the main config do the real work.
 config.loaded_site_config = True

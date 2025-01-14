@@ -13,9 +13,7 @@
 // CHECK-SYNC-NOT: data race
 // CHECK-SYNC-NOT: [Error] sync
 
-#include "../support/gpu_mpi.h"
-
-#include <unistd.h>
+#include <stdio.h>
 
 __global__ void write_kernel_delay(int* arr, const int N, int value, const unsigned int delay) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
