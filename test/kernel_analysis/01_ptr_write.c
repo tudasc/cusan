@@ -1,5 +1,6 @@
 // clang-format off
-// RUN: %wrapper-cc %emit-host-only --cusan-kernel-data=%t.yaml -x cuda --cuda-gpu-arch=sm_72 %s 2>&1 | %filecheck %s  -DFILENAME=%s
+// RUN: %rm-file %t.yaml 
+// RUN: %wrapper-cc %clang-pass-only-args --cusan-kernel-data=%t.yaml -x cuda --cuda-gpu-arch=sm_72 %s 2>&1 | %filecheck %s  -DFILENAME=%s
 
 // CHECK-NOT: Handling Arg:
 // CHECK: Handling Arg:

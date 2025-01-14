@@ -150,7 +150,11 @@ if(MPI_FOUND)
   set_cusan_mpi_compiler()
 endif()
 
-set(CUSAN_WRAPPER cusan-wrapper.in)
+if(CUSAN_TYPEART)
+  set(CUSAN_WRAPPER cusan-wrapper.in)
+else()
+  set(CUSAN_WRAPPER cusan-wrapperv2.in)
+endif()
 
 if(NOT CUSAN_TYPEART)
   add_library(typeart_runtime_mock SHARED IMPORTED)

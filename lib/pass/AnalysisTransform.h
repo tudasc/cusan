@@ -7,8 +7,8 @@
 #ifndef CUSAN_ANALYSISTRANSFORM_H
 #define CUSAN_ANALYSISTRANSFORM_H
 
+#include "../analysis/KernelAnalysis.h"
 #include "FunctionDecl.h"
-#include "analysis/KernelAnalysis.h"
 
 #include <llvm/Demangle/Demangle.h>
 #include <llvm/IR/Function.h>
@@ -220,7 +220,7 @@ class CudaMallocPitch : public SimpleInstrumenter<CudaMallocPitch> {
   static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
     //(void** devPtr, size_t* pitch, size_t width, size_t height )
     assert(args.size() == 4);
-    auto* ptr  = irb.CreateBitOrPointerCast(args[0], irb.getInt8Ty()->getPointerTo());
+    auto* ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8Ty()->getPointerTo());
 
     //"The function may pad the allocation"
     //"*pitch by cudaMallocPitch() is the width in bytes of the allocation"

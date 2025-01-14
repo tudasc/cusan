@@ -11,6 +11,11 @@ cusan_llvm_module(cusan_TransformPass
 )
 mark_as_advanced(LLVM_CUSAN_TRANSFORMPASS_LINK_INTO_TOOLS)
 
+target_compile_definitions(cusan_TransformPass
+  PRIVATE
+  $<$<BOOL:${CUSAN_TYPEART}>:CUSAN_HAS_TYPEART=1>
+)
+
 set_target_properties(
   cusan_TransformPass
   PROPERTIES

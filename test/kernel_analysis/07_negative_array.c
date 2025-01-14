@@ -1,13 +1,14 @@
 // clang-format off
-// RUN: %wrapper-cc %emit-host-only --cusan-kernel-data=%t.yaml -x cuda --cuda-gpu-arch=sm_72 %s 2>&1 | %filecheck %s  -DFILENAME=%s
-
-// clang-format on
+// RUN: %rm-file %t.yaml 
+// RUN: %wrapper-cc %clang-pass-only-args --cusan-kernel-data=%t.yaml -x cuda --cuda-gpu-arch=sm_72 %s 2>&1 | %filecheck %s  -DFILENAME=%s
 
 // CHECK-NOT: Handling Arg:
 // CHECK: Handling Arg:
 // CHECK-NEXT: subarg: {{.*}} ptr: 1, rw: Read
 // CHECK-NEXT: subarg: {{.*}}, is_loading, gep_indices:[], ptr: 1, rw: Write
 // CHECK-NOT: Handling Arg:
+
+// clang-format on
 
 #include <cuda_runtime.h>
 #include <stdio.h>
