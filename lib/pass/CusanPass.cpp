@@ -201,11 +201,11 @@ bool CusanPass::runOnFunc(llvm::Function& function) {
 //.....................
 llvm::PassPluginLibraryInfo getCusanPassPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, "cusan", LLVM_VERSION_STRING, [](PassBuilder& pass_builder) {
-            pass_builder.registerPipelineStartEPCallback([](auto& MPM, OptimizationLevel l) {
+            pass_builder.registerPipelineStartEPCallback([](auto& MPM, OptimizationLevel) {
               // LOG_DEBUG("Opt " << l.getSizeLevel() << " " << l.getSpeedupLevel() << " " << l.O0.getSpeedupLevel())
               MPM.addPass(cusan::CusanPass());
             });
-#if (LLVM_VERSION_MAJOR == 14) && !defined(CUSAN_HAS_TYPEART)
+#if (LLVM_VERSION_MAJOR == 14) && !defined(CUSAN_TYPEART)
             pass_builder.registerPipelineParsingCallback(
                 [](StringRef name, ModulePassManager& module_pm, ArrayRef<PassBuilder::PipelineElement>) {
                   if (name == "cusan") {
