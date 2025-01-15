@@ -9,9 +9,7 @@ Our runtime then exposes this information to [ThreadSanitizer](https://clang.llv
 
 ## Usage
 
-Making use of CuSan consists of two phases:
-
-sing CuSan involves two main steps:
+Using CuSan involves two main steps:
 
 1. **Compile your code** with one of the CuSan compiler wrappers, such as `cusan-clang++` or `cusan-mpic++`. This process:
    - Analyzes and instruments the CUDA API, including kernel calls and specific memory access semantics (r/w).
@@ -19,24 +17,34 @@ sing CuSan involves two main steps:
    - Links the CuSan runtime library.
 2. **Execute the target program** for data race analysis. Our runtime calls ThreadSanitizer to expose CUDA synchronization and memory access semantics.
 
+##### Compilation limitations
+Currently, the compilation must be serialized, e.g., `make -j 1`, to ensure consistent kernel memory access information.
+Our analysis writes its kernel-specific data into a specific `.yaml` file during device side compilation (`env CUSAN_KERNEL_DATA_FILE` or wrapper argument `--cusan-kernel-data=`).
+This file is subsequently read during the host side compilation.
+
+
 #### Example usage
 Given the file [02_event.c](test/runtime/02_event.c), to detect CUDA data races, execute the following:
 
 ```bash
-$ cusan-clang -O3 -g 02_event.c -x cuda -gencode arch=compute_70,code=sm_70 -o event.exe
+# Set explicit location of kernel memory access data file
+$ export CUSAN_KERNEL_DATA_FILE=kernel-data.yaml
+# Compile code with CuSan
+$ cusan-clang -O3 -g -x cuda -gencode arch=compute_70,code=sm_70 02_event.c -o event.exe
 $ export TSAN_OPTIONS=ignore_noninstrumented_modules=1
 $ ./event.exe
 ```
 
 ### Checking CUDA-aware MPI applications
-To check CUDA-aware MPI applications, use the MPI correctness checker [MUST](https://hpc.rwth-aachen.de/must/) or preload our simple MPI interceptor `libCusanMPIInterceptor.so`. 
+To check CUDA-aware MPI applications, use the MPI correctness checker [MUST](https://hpc.rwth-aachen.de/must/) or preload our MPI interceptor `libCusanMPIInterceptor.so`. 
+The latter has very limited capabilities and ist used mostly for internal testing.
 These libraries call ThreadSanitizer with MPI-specific access semantics, ensuring that combined CUDA and MPI semantics are properly exposed to ThreadSanitizer for data race detection between dependent MPI and CUDA calls.
 
 #### Example usage for MPI
 Given the file [03_cuda_to_mpi.c](test/runtime/03_cuda_to_mpi.c), execute the following:
 
 ```bash
-$ cusan-mpic++ -O3 -g 03_cuda_to_mpi.c -x cuda -gencode arch=compute_70,code=sm_70 -o cuda_to_mpi.exe
+$ cusan-mpic++ -O3 -g -x cuda -gencode arch=compute_70,code=sm_70  03_cuda_to_mpi.c -o cuda_to_mpi.exe
 $ LD_PRELOAD=/path/to/libCusanMPIInterceptor.so mpirun -n 2 ./cuda_to_mpi.exe
 ```
 
@@ -89,6 +97,16 @@ For the Lichtenberg HPC system, some issues may arise when using ThreadSanitizer
   export OMPI_MCA_memory=^patcher
   ```
 
+### Using CuSan with CMake
+For plain Makefiles, the wrapper replaces the Clang compiler variables, e.g., `CC` or `MPICC`. For CMake, during the configuration, it is advised to disable the wrapper temporarily. This is due to CMake executing internal compiler checks, where we do not need CuSan instrumentation:
+
+```bash
+# Temporarily disable wrapper with environment flag CUSAN_WRAPPER=OFF:
+$> CUSAN_WRAPPER=OFF cmake -B build -DCMAKE_C_COMPILER=cusan-clang 
+# Compile with cusan-clang:
+$> cmake --build build --target install -- -j1
+```
+
 ## Building CuSan
 
 CuSan is tested with LLVM version 14 and 18, and CMake version >= 3.20. Use CMake presets `develop` or `release`
@@ -120,5 +138,22 @@ $> cmake --build build --target install --parallel
 | `CUSAN_FIBERPOOL`            |  `OFF`  | Use external library to efficiently manage fibers creation .                                      |
 | `CUSAN_SOFTCOUNTER`          |  `OFF`  | Runtime stats for calls to ThreadSanitizer and CUDA-callbacks. Only use for stats collection, not race detection.   |
 | `CUSAN_SYNC_DETAIL_LEVEL`    |  `ON`   | Analyze, e.g., memcpy and memcpyasync w.r.t. arguments to determine implicit sync.                |
-| `CUSAN_LOG_LEVEL_RT`         |  `3`    | Granularity of runtime logger. 3 is most verbose, 0 is least. For release, set to 0.              |
+| `CUSAN_LOG_LEVEL_RT`         |  `0`    | Granularity of runtime logger. 3 is most verbose, 0 is least. For release, set to 0.              |
 | `CUSAN_LOG_LEVEL_PASS`         |  `3`    | Granularity of pass plugin logger. 3 is most verbose, 0 is least. For release, set to 0.              |
+
+### Development 
+
+For debugging, additional (hidden) build options and environment flags exists.
+
+
+#### Build options
+| Option                       | Default | Description                                                                                       |
+|------------------------------|:-------:|---------------------------------------------------------------------------------------------------|
+| `CUSAN_TEST_WORKAROUNDS`              |  `ON`  | Will set environment flags as described in **Caveats ThreadSanitizer and OpenMPI** for testing.                                      |
+
+#### Environment flags
+
+| Environment Flag                       | Default | Description                                                                                       |
+|------------------------------|:-------:|---------------------------------------------------------------------------------------------------|
+| `CUSAN_DUMP_HOST_IR`              |  -  | Dumps module IR of host side during compilation to stdout after our transformations. Unsupported with TypeART.                                      |
+| `CUSAN_DUMP_DEVICE_IR`              |  -  | Dumps module IR of device during compilation to stdout after our analysis. This includes the applied transformation *mem2reg*. Note: Device analysis happens before host. Unsupported with TypeART.                                     |
