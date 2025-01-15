@@ -224,16 +224,6 @@ configure_cusan_script(
   COMPILER ${CUSAN_CLANGCXX_EXEC}
 )
 
-#configure_cusan_script(cusan-tmpl.sh.in run.sh)
-#if(CUSAN_TYPEART)
-  configure_cusan_script(
-    cusan-tmpl.sh.in apply.sh
-    APPLY_MODE ON
-  )
-#endif()
-
-configure_cusan_script(${CUSAN_WRAPPER} cusan-clang.sh)
-
 install(
   PROGRAMS
     ${CMAKE_CURRENT_BINARY_DIR}/cusan-clang++${CMAKE_DEBUG_POSTFIX}
