@@ -36,7 +36,7 @@ function cusan_global_init_fn() {
   readonly cusan_san_flags="@CUSAN_SAN_FLAG@"
 
   readonly cusan_includes="${cusan_include_dir}"
-  readonly cusan_plugin="-fpass-plugin="${cusan_pass}" -D__STRICT_ANSI__"
+  readonly cusan_plugin="-fpass-plugin="${cusan_pass}""
 
   readonly cusan_compiler="@CUSAN_COMPILER@"
 

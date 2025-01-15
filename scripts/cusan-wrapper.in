@@ -68,7 +68,7 @@ function cusan_global_init_fn() {
 
   readonly cusan_san_flags="@CUSAN_SAN_FLAG@"
 
-  readonly cusan_includes="${cusan_include_dir} -D__STRICT_ANSI__"
+  readonly cusan_includes="${cusan_include_dir}"
   if [ "@CUSAN_NEW_PM_REQUIRED@" == 1 ]; then
     readonly cusan_plugin="-load-pass-plugin "${cusan_pass}" -passes=cusan"
   else
