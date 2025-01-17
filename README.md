@@ -1,7 +1,7 @@
 # CuSan  &middot; [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
 
-CuSan is a tool for detecting data races between (asynchronous) CUDA calls and the host.
+CuSan \[[CU24](#ref-cusan-2024)\] is a tool for detecting data races between (asynchronous) CUDA calls and the host.
 
 To achieve this, we analyze and instrument CUDA API usage in the target code during compilation with Clang/LLVM to track CUDA-specific memory accesses and synchronization semantics.
 Our runtime then exposes this information to [ThreadSanitizer](https://clang.llvm.org/docs/ThreadSanitizer.html) (packaged with Clang/LLVM) for final data race analysis.
@@ -11,7 +11,7 @@ Our runtime then exposes this information to [ThreadSanitizer](https://clang.llv
 
 Using CuSan involves two main steps:
 
-1. **Compile your code** with one of the CuSan compiler wrappers, such as `cusan-clang++` or `cusan-mpic++`. This process:
+1. **Compile your code** with one of the CuSan compiler wrappers, su ch as `cusan-clang++` or `cusan-mpic++`. This process:
    - Analyzes and instruments the CUDA API, including kernel calls and specific memory access semantics (r/w).
    - Automatically adds ThreadSanitizer instrumentation (`-fsanitize=thread`).
    - Links the CuSan runtime library.
@@ -157,3 +157,15 @@ For debugging, additional (hidden) build options and environment flags exists.
 |------------------------------|:-------:|---------------------------------------------------------------------------------------------------|
 | `CUSAN_DUMP_HOST_IR`              |  -  | Dumps module IR of host side during compilation to stdout after our transformations. Unsupported with TypeART.                                      |
 | `CUSAN_DUMP_DEVICE_IR`              |  -  | Dumps module IR of device during compilation to stdout after our analysis. This includes the applied transformation *mem2reg*. Note: Device analysis happens before host. Unsupported with TypeART.                                     |
+
+## References
+
+<table style="border:0px">
+<tr>
+    <td valign="top"><a name="ref-cusan-2024"></a>[CU24]</td>
+    <td>Hück, Alexander and Ziegler, Tim and Schwitanski, Simon and Jenke, Joachim and Bischof, Christian,
+    "Compiler-Aided Correctness Checking of CUDA-Aware MPI Applications",
+    In <i>SC24-W: Workshops of the International Conference for High Performance Computing, Networking, Storage and Analysis</i>,
+    pages 204-213. IEEE, 2024, doi: <a href=https://doi.org/10.1109/SCW63240.2024.00032>10.1109/SCW63240.2024.00032</a></td>
+</tr>
+</table>
