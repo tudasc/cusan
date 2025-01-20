@@ -1,0 +1,90 @@
+name: CuSan-CI
+
+on:
+  push:
+    branches: [ main, devel ]
+  pull_request:
+
+env:
+  CXX: clang++
+  CC: clang
+
+jobs:
+  format-check:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Format source code
+        run: |
+          find lib test \
+            -type f \
+            -a \( -name "*.c" -o -name "*.cpp" -o -name "*.h" \) \
+            -print0 \
+            | xargs -0 clang-format-14 -i
+
+      - name: Format check
+        run: |
+          git status --porcelain --untracked-files=no
+          git status --porcelain --untracked-files=no | xargs -o -I {} test -z \"{}\"
+
+  codespell:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: codespell-project/actions-codespell@v2
+
+  lit-suite:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - llvm-version: 14
+            os: ubuntu-22.04
+            preset: release
+          - llvm-version: 18
+            os: ubuntu-24.04
+            preset: release
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update apt
+        run: sudo apt-get update
+
+      - uses: Jimver/cuda-toolkit@v0.2.19
+        id: cuda-toolkit
+        with:
+          cuda: '11.8.0'
+
+      - name: Install LLVM
+        run: sudo apt-get install libllvm${{ matrix.llvm-version }} llvm-${{ matrix.llvm-version }} llvm-${{ matrix.llvm-version }}-dev
+
+      - name: Install Clang
+        run: sudo apt-get install clang-${{ matrix.llvm-version }} clang-tidy-${{ matrix.llvm-version }}
+
+      - name: Install OpenMPI
+        run: sudo apt-get install libopenmpi-dev openmpi-bin
+
+      - name: Setup env
+        run: |
+          sudo ln -f -s /usr/bin/clang-${{ matrix.llvm-version }} /usr/bin/clang
+          sudo ln -f -s /usr/bin/clang++-${{ matrix.llvm-version }} /usr/bin/clang++
+          echo "LLVM_CMAKE_DIR=/usr/lib/llvm-${{ matrix.llvm-version }}/cmake" >> $GITHUB_ENV
+          echo "EXTERNAL_LIT=/usr/lib/llvm-${{ matrix.llvm-version }}/build/utils/lit/lit.py" >> $GITHUB_ENV
+
+      - name: Configure CuSan
+        run: cmake -B build --preset ${{ matrix.preset }} -DLLVM_DIR=${LLVM_CMAKE_DIR} -DLLVM_EXTERNAL_LIT=${EXTERNAL_LIT}
+
+      - name: Build CuSan
+        run: cmake --build build --parallel 2
+
+      - name: Test CuSan pass
+        run: cmake --build build --target check-cusan-pass
+
+      - name: Test CuSan kernel analysis
+        run: cmake --build build --target check-cusan-kernel_analysis
