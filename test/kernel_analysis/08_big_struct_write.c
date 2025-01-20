@@ -1,5 +1,6 @@
-// RUN: %apply %s  -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | \
-// RUN: %filecheck %s
+// clang-format off
+// RUN: %rm-file %t.yaml 
+// RUN: %wrapper-cc %clang-pass-only-args --cusan-kernel-data=%t.yaml -x cuda --cuda-gpu-arch=sm_72 %s 2>&1 | %filecheck %s
 
 // CHECK-NOT: Handling Arg:
 // CHECK: Handling Arg:
@@ -20,6 +21,8 @@
 // CHECK-NEXT: Handling Arg:
 // CHECK-NEXT: subarg: {{.*}}ptr: 0, rw: ReadWrite
 // CHECK-NOT: Handling Arg:
+
+// clang-format on
 
 #include "../support/gpu_mpi.h"
 

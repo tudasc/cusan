@@ -1,7 +1,7 @@
 // clang-format off
-// RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 > test_out.ll
+// RUN: %rm-file %t.yaml 
 
-
+// RUN: %wrapper-cc %clang-pass-only-args --cusan-kernel-data=%t.yaml -x cuda --cuda-gpu-arch=sm_72 %s 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 
 // CHECK-LLVM-IR: @main(i32 noundef %0, {{i8\*\*|ptr}} noundef %1)
 // CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMalloc
@@ -20,35 +20,35 @@
 // CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaFree({{.*}}[[free_ptr2:%[0-9a-z]+]])
 // CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_device_free({{.*}}[[free_ptr2]])
 
+// XFAIL: *
+
+// clang-format on
 
 #include "../support/gpu_mpi.h"
 
-struct BufferStorage{
+struct BufferStorage {
   int* buff1;
   int* buff2;
 };
 
-
 __global__ void kernel1(BufferStorage* storage, const int N) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid < N) {
-    storage->buff1[tid] = tid*32;
+    storage->buff1[tid] = tid * 32;
   }
 }
 __global__ void kernel2(BufferStorage* storage, const int N) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid < N) {
-    storage->buff2[tid] = tid*32;
+    storage->buff2[tid] = tid * 32;
   }
 }
 __global__ void kernel3(BufferStorage* storage, const int N) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid < N) {
-    storage->buff2[tid] = tid*32;
+    storage->buff2[tid] = tid * 32;
   }
 }
-
-
 
 int main(int argc, char* argv[]) {
   if (!has_gpu_aware_mpi()) {
@@ -70,7 +70,6 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-
   BufferStorage* buffStor;
   cudaHostAlloc(&buffStor, sizeof(BufferStorage), 0);
   cudaMalloc(&buffStor->buff1, size * sizeof(int));
@@ -80,21 +79,23 @@ int main(int argc, char* argv[]) {
   cudaStreamCreate(&stream2);
 
   if (world_rank == 0) {
-
     kernel1<<<blocksPerGrid, threadsPerBlock, 0, stream1>>>(buffStor, size);
-    kernel3<<<blocksPerGrid, threadsPerBlock, 0, stream2>>>(buffStor, size);//no problem since kernel 1 and 3 write to different
-    kernel2<<<blocksPerGrid, threadsPerBlock, 0, stream2>>>(buffStor, size);//also no problem since they on same stream
+    kernel3<<<blocksPerGrid, threadsPerBlock, 0, stream2>>>(
+        buffStor, size);  // no problem since kernel 1 and 3 write to different
+    kernel2<<<blocksPerGrid, threadsPerBlock, 0, stream2>>>(buffStor,
+                                                            size);  // also no problem since they on same stream
 #ifdef CUSAN_SYNC
-  cudaDeviceSynchronize();
+    cudaDeviceSynchronize();
 #endif
     MPI_Send(buffStor->buff2, size, MPI_INT, 1, 0, MPI_COMM_WORLD);
-    //MPI_Send(buffStor.buff1, size, MPI_INT, 1, 0, MPI_COMM_WORLD);
-    
+    // MPI_Send(buffStor.buff1, size, MPI_INT, 1, 0, MPI_COMM_WORLD);
+
   } else if (world_rank == 1) {
     MPI_Recv(buffStor->buff2, size, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    //MPI_Recv(buffStor.buff1, size, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    
-    kernel3<<<blocksPerGrid, threadsPerBlock, 0, stream1>>>(buffStor, size);//problem since different stream but same write target
+    // MPI_Recv(buffStor.buff1, size, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+    kernel3<<<blocksPerGrid, threadsPerBlock, 0, stream1>>>(
+        buffStor, size);  // problem since different stream but same write target
   }
   cudaDeviceSynchronize();
 

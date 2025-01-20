@@ -1,7 +1,7 @@
 // clang-format off
+// RUN: %rm-file %t.yaml 
 
-// RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
-// clang-format on
+// RUN: %wrapper-cc %clang-pass-only-args --cusan-kernel-data=%t.yaml -x cuda --cuda-gpu-arch=sm_72 %s 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 
 // CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamCreate
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
@@ -16,6 +16,8 @@
 
 // FLAKYPASS: *
 // ALLOW_RETRIES: 5
+
+// clang-format on
 
 #include "../support/gpu_mpi.h"
 
