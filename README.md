@@ -37,7 +37,7 @@ $ ./event.exe
 
 ### Checking CUDA-aware MPI applications
 To check CUDA-aware MPI applications, use the MPI correctness checker [MUST](https://hpc.rwth-aachen.de/must/) or preload our MPI interceptor `libCusanMPIInterceptor.so`. 
-The latter has very limited capabilities and ist used mostly for internal testing.
+The latter has very limited capabilities and is used mostly for internal testing.
 These libraries call ThreadSanitizer with MPI-specific access semantics, ensuring that combined CUDA and MPI semantics are properly exposed to ThreadSanitizer for data race detection between dependent MPI and CUDA calls.
 
 #### Example usage for MPI

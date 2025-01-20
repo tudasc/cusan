@@ -5,4 +5,4 @@ check-hidden =
 skip = */.git,*/build*,*/.codespellrc,*/install,.clang-tidy
 quiet-level = 2
 ignore-regex = ^#include <(?:stdio)\.h>$|DEPENDEES|\\endcode
-ignore-words-list = uint,IFF
+ignore-words-list = uint,IFF,Tim
