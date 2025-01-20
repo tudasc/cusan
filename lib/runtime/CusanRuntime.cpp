@@ -527,7 +527,8 @@ void _cusan_memset_impl(void* target, size_t count) {
   auto& runtime = Runtime::get();
   runtime.stats_recorder.inc_memset_calls();
   runtime.switch_to_stream(Runtime::kDefaultStream);
-  LOG_TRACE("[cusan]    " << "Write to " << target << " with size: " << count)
+  LOG_TRACE("[cusan]    "
+            << "Write to " << target << " with size: " << count)
   TsanMemoryWritePC(target, count, __builtin_return_address(0));
   runtime.stats_recorder.inc_TsanMemoryWrite();
   runtime.happens_before();
@@ -536,10 +537,12 @@ void _cusan_memset_impl(void* target, size_t count) {
   auto* alloc_info = runtime.get_allocation_info(target);
   // if we couldn't find alloc info we just assume the worst and don't sync
   if ((alloc_info && (alloc_info->is_pinned || alloc_info->is_managed)) || CUSAN_SYNC_DETAIL_LEVEL == 0) {
-    LOG_TRACE("[cusan]    " << "Memset is blocking")
+    LOG_TRACE("[cusan]    "
+              << "Memset is blocking")
     runtime.happens_after_stream(Runtime::kDefaultStream);
   } else {
-    LOG_TRACE("[cusan]    " << "Memset is not blocking")
+    LOG_TRACE("[cusan]    "
+              << "Memset is not blocking")
     if (!alloc_info) {
       LOG_DEBUG("[cusan]    Failed to get alloc info " << target);
     } else if (!alloc_info->is_pinned && !alloc_info->is_managed) {

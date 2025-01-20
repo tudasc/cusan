@@ -28,9 +28,8 @@
 
 // clang-format on
 
-#include "../support/gpu_mpi.h"
-
 #include <assert.h>
+#include <stdio.h>
 
 __global__ void kernel(int* arr, const int N) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;

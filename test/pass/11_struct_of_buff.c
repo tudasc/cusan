@@ -17,8 +17,6 @@
 
 // clang-format on
 
-#include "../support/gpu_mpi.h"
-
 struct BufferStorage {
   int* buff1;
   int* buff2;

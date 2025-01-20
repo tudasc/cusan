@@ -20,8 +20,6 @@
 
 // clang-format on
 
-#include "../support/gpu_mpi.h"
-
 #include <unistd.h>
 
 __global__ void writing_kernel(float* arr, const int N, float value) {  // CHECK-DAG: [[FILENAME]]:[[@LINE]]
@@ -47,10 +45,6 @@ __global__ void reading_kernel(float* res, const float* read, const int N,
 }
 
 int main(int argc, char* argv[]) {
-  if (!has_gpu_aware_mpi()) {
-    printf("This example is designed for CUDA-aware MPI. Exiting.\n");
-    return 1;
-  }
   const int size            = 512;
   const int threadsPerBlock = size;
   const int blocksPerGrid   = (size + threadsPerBlock - 1) / threadsPerBlock;

@@ -20,8 +20,6 @@
 
 // clang-format on
 
-#include "../support/gpu_mpi.h"
-
 struct BufferStorage2 {
   int* buff;
 };

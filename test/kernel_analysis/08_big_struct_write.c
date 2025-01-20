@@ -1,6 +1,6 @@
 // clang-format off
 // RUN: %rm-file %t.yaml 
-// RUN: %wrapper-cc %clang-pass-only-args --cusan-kernel-data=%t.yaml -x cuda --cuda-gpu-arch=sm_72 %s 2>&1 | %filecheck %s
+// RUN: %wrapper-mpicc %clang-pass-only-args --cusan-kernel-data=%t.yaml -x cuda --cuda-gpu-arch=sm_72 %s 2>&1 | %filecheck %s
 
 // CHECK-NOT: Handling Arg:
 // CHECK: Handling Arg:
