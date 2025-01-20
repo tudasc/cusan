@@ -16,6 +16,7 @@
 
 // clang-format on
 
+#include <stdio.h>
 #include <unistd.h>
 
 __global__ void kernel(int* arr, const int N) {

@@ -29,6 +29,7 @@
 // clang-format on
 
 #include <assert.h>
+#include <stdio.h>
 
 __global__ void kernel(int* arr, const int N) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;

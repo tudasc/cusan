@@ -15,6 +15,7 @@
 
 // clang-format on
 
+#include <stdio.h>
 #include <unistd.h>
 
 __global__ void write_kernel_delay(int* arr, const int N, int value, const unsigned int delay) {
