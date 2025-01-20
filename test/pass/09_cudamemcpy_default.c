@@ -1,15 +1,16 @@
 // clang-format off
-// RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
-// clang-format on
+// RUN: %rm-file %t.yaml 
+// RUN: %wrapper-cc %clang-pass-only-args --cusan-kernel-data=%t.yaml -x cuda --cuda-gpu-arch=sm_72 %s 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 
-// CHECK-LLVM-IR: @main(i32 noundef %0, {{i8\*\*|ptr}} noundef %1)
+// CHECK-LLVM-IR: @main(
 // CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaHostRegister({{i8\*|ptr}} {{.*}}[[unregister_ptr:%[0-9a-z]+]]
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_host_register({{i8\*|ptr}} {{.*}}[[unregister_ptr]]
-// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMemcpy({{i8\*|ptr}} {{.*}}[[target:%[0-9a-z]+]], {{i8\*|ptr}}
-// {{.*}}[[from:%[0-9a-z]+]], CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy({{i8\*|ptr}} {{.*}}[[target]],
-// {{i8\*|ptr}} {{.*}}[[from]], CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaHostUnregister({{i8\*|ptr}}
-// {{.*}}[[unregister_ptr:%[0-9a-z]+]] CHECK-LLVM-IR: {{call|invoke}} void @_cusan_host_unregister({{i8\*|ptr}}
-// {{.*}}[[unregister_ptr]]
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMemcpy({{i8\*|ptr}} {{.*}}[[target:%[0-9a-z]+]], {{i8\*|ptr}} {{.*}}[[from:%[0-9a-z]+]],
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy({{i8\*|ptr}} {{.*}}[[target]], {{i8\*|ptr}} {{.*}}[[from]], 
+// CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaHostUnregister({{i8\*|ptr}} {{.*}}[[unregister_ptr:%[0-9a-z]+]]
+// CHECK-LLVM-IR: {{call|invoke}} void @_cusan_host_unregister({{i8\*|ptr}} {{.*}}[[unregister_ptr]]
+
+// clang-format on
 
 #include <cuda_runtime.h>
 #include <stdio.h>

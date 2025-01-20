@@ -48,3 +48,5 @@ test/*/*.o
 test/**/*.log
 test/**/*.yaml
 test/**/*.profraw
+test/**/*.fatbin
+test/**/*.ptx

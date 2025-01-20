@@ -56,29 +56,41 @@ llvm::SmallVector<KernelArgInfo, 4> CudaKernelInvokeCollector::extract_kernel_ar
 
   llvm::SmallVector<Value*, 4> real_args;
 
+  LOG_DEBUG("Kernel argument array: " << *void_kernel_arg_array);
+  auto process_store = [&](StoreInst* store) {
+    if (!(index < model.args.size())) {
+      LOG_FATAL("In: " << *store->getParent()->getParent());
+      LOG_FATAL("Out of bounds for model args: " << index << " vs. " << model.args.size());
+      assert(false && "Encountered out of bounds access");
+    }
+    if (auto* cast = dyn_cast<BitCastInst>(store->getValueOperand())) {
+      LOG_DEBUG("Found bcast " << *cast)
+      real_args.push_back(*cast->operand_values().begin());
+    } else {
+      LOG_DEBUG("Found store " << *store)
+      real_args.push_back(*store->operand_values().begin());
+    }
+    index++;
+  };
   for (auto* array_user : void_kernel_arg_array->users()) {
     if (auto* gep = dyn_cast<GetElementPtrInst>(array_user)) {
       for (auto* gep_user : gep->users()) {
         if (auto* store = dyn_cast<StoreInst>(gep_user)) {
-          if (!(index < model.args.size())) {
-            LOG_FATAL("In: " << *store->getParent()->getParent())
-            LOG_FATAL("Out of bounds for model args: " << index << " vs. " << model.args.size());
-            assert(false && "Encountered out of bounds access");
-          }
-          if (auto* cast = dyn_cast<BitCastInst>(store->getValueOperand())) {
-            real_args.push_back(*cast->operand_values().begin());
-          } else {
-            real_args.push_back(*store->operand_values().begin());
-          }
-          index++;
+          process_store(store);
         }
       }
+    }
+    if (auto* store = dyn_cast<StoreInst>(array_user)) {
+      process_store(store);
     }
   }
 
   llvm::SmallVector<KernelArgInfo, 4> result = model.args;
+  // if (!real_args.empty()) {
   for (auto& res : result) {
+    // Value* val = real_args[real_args.size() - 1 - res.arg_pos];
     Value* val = real_args[real_args.size() - 1 - res.arg_pos];
+    LOG_DEBUG("Real argument: " << *val)
     // because of ABI? clang might convert struct argument to a (byval)pointer
     // but the actual cuda argument is just a value. So we double check that it actually allocates a pointer
     bool real_ptr = false;
@@ -96,6 +108,7 @@ llvm::SmallVector<KernelArgInfo, 4> CudaKernelInvokeCollector::extract_kernel_ar
     }
     res.value = val;
   }
+  // }
   return result;
 }
 }  // namespace analysis
@@ -567,26 +580,6 @@ llvm::SmallVector<Value*> CudaFree::map_arguments(IRBuilder<>& irb, llvm::ArrayR
   assert(args.size() == 1);
   auto* ptr = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
   return {ptr};
-}
-
-// CudaMallocPitch
-
-CudaMallocPitch::CudaMallocPitch(callback::FunctionDecl* decls) {
-  setup("cudaMallocPitch", &decls->cusan_device_alloc.f);
-}
-llvm::SmallVector<Value*> CudaMallocPitch::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-  //(void** devPtr, size_t* pitch, size_t width, size_t height )
-  assert(args.size() == 4);
-  auto* ptr = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
-
-  //"The function may pad the allocation"
-  //"*pitch by cudaMallocPitch() is the width in bytes of the allocation"
-  auto* pitch = irb.CreateLoad(irb.getIntPtrTy(irb.GetInsertBlock()->getModule()->getDataLayout()), args[1]);
-  // auto* width = args[2];
-  auto* height = args[3];
-
-  auto* real_size = irb.CreateMul(pitch, height);
-  return {ptr, real_size};
 }
 
 // CudaStreamQuery
