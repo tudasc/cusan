@@ -28,8 +28,6 @@
 
 // clang-format on
 
-#include "../support/gpu_mpi.h"
-
 #include <assert.h>
 
 __global__ void kernel(int* arr, const int N) {

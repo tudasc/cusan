@@ -15,8 +15,6 @@
 
 // clang-format on
 
-#include "../support/gpu_mpi.h"
-
 #include <unistd.h>
 
 __global__ void write_kernel_delay(int* arr, const int N, int value, const unsigned int delay) {
