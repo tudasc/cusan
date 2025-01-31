@@ -95,6 +95,10 @@ class Device {
     cpu_fiber_ = TsanGetCurrentFiber();
   }
 
+  bool operator==(const Device& other) const {
+    return curr_fiber_ == other.curr_fiber_;
+  }
+
   [[nodiscard]] const std::map<const void*, AllocationInfo>& get_allocations() {
     return allocations_;
   }
@@ -240,7 +244,9 @@ class Runtime {
   std::map<Event, std::pair<TsanFiber, Device*>> events_;
   int32_t current_device_;
   bool init_;
-
+#if CUSAN_SOFTCOUNTER
+  softcounter::AtomicCounter device_switches = 0;
+#endif
  public:
   static Runtime& get() {
     static Runtime run_t;
@@ -255,6 +261,15 @@ class Runtime {
   Runtime(const Runtime&) = delete;
 
   void operator=(const Runtime&) = delete;
+
+#if CUSAN_SOFTCOUNTER
+  inline void inc_device_switches() {
+    this->device_switches++;
+  }
+  inline softcounter::Counter get_device_switches() {
+    return this->device_switches;
+  }
+#endif
 
   Device& get_current_device() {
     return devices_.at(current_device_);
@@ -271,6 +286,11 @@ class Runtime {
     if (devices_.find(device) == devices_.end()) {
       devices_[device];
     }
+#if CUSAN_SOFTCOUNTER
+    if (current_device_ != device) {
+      inc_device_switches();
+    }
+#endif
     current_device_ = device;
   }
 
@@ -296,10 +316,11 @@ class Runtime {
     for (auto& [_, device] : devices_) {
       device.output_statistics();
     }
-#endif
 
-#ifdef CUSAN_FIBERPOOL
-    // TsanFiberPoolFini();
+    Table table{"Cusan runtime statistics"};
+    table.put(Row::make("Device Switches ", get_device_switches()));
+    table.print(std::cout);
+
 #endif
   }
 };
@@ -546,14 +567,16 @@ void _cusan_event_query(Event event, unsigned int err) {
 }
 
 void _cusan_set_device(DeviceID device) {
-  Runtime::get().set_device(device);
+  auto& r = Runtime::get();
+  r.set_device(device);
 }
 
 void _cusan_choose_device(DeviceID* device) {
   // does this function ever return a nullptr?
   // and what would that mean
   assert(device);
-  Runtime::get().set_device(*device);
+  auto& r = Runtime::get();
+  r.set_device(*device);
 }
 
 void _cusan_memset_async_impl(void* target, size_t count, RawStream stream) {
