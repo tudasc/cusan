@@ -166,6 +166,11 @@ bool CusanPass::runOnFunc(llvm::Function& function) {
   modified |= transform::CudaChooseDevice(&cusan_decls_).instrument(function);
   modified |= transform::CudaSetDevice(&cusan_decls_).instrument(function);
 
+  //callbacks
+  modified |= transform::CudaDeviceSyncCallback(&cusan_decls_).instrument(function);
+  modified |= transform::CudaEventSyncCallback(&cusan_decls_).instrument(function);
+  modified |= transform::CudaStreamSyncCallback(&cusan_decls_).instrument(function);
+
   auto data_for_host = host::kernel_model_for_stub(&function, this->kernel_models_);
   if (data_for_host) {
     LOG_FATAL("Found kernel data for " << util::try_demangle_fully(function) << ": "

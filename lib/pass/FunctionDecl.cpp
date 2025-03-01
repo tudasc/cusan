@@ -1,4 +1,5 @@
 #include "FunctionDecl.h"
+
 #include <cstdint>
 
 namespace cusan::callback {
@@ -133,6 +134,10 @@ void FunctionDecl::initialize(llvm::Module& module) {
   //  void* device
   ArgTypes arg_types_choose_device = {Type::getInt32Ty(c)->getPointerTo()};
   make_function(cusan_choose_device, arg_types_choose_device);
+
+  //  u8 evenType, u32 returnValue
+  ArgTypes arg_types_sync_callback = {Type::getInt8Ty(c), Type::getInt32Ty(c)};
+  make_function(cusan_sync_callback, arg_types_sync_callback);
 }
 
 }  // namespace cusan::callback

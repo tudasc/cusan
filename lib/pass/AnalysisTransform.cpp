@@ -644,4 +644,45 @@ llvm::SmallVector<Value*, 1> CudaEventQuery::map_return_value(IRBuilder<>& irb, 
   return {result};
 }
 
+
+
+CudaStreamSyncCallback::CudaStreamSyncCallback(callback::FunctionDecl* decls) {
+  setup("cudaStreamSynchronize", &decls->cusan_sync_callback.f);
+}
+llvm::SmallVector<Value*> CudaStreamSyncCallback::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  //( void* stream)
+  assert(args.size() == 1);
+  return {irb.getInt8(1)};
+}
+llvm::SmallVector<Value*, 1> CudaStreamSyncCallback::map_return_value(IRBuilder<>& irb, Value* result) {
+  return {result};
+}
+
+CudaEventSyncCallback::CudaEventSyncCallback(callback::FunctionDecl* decls) {
+  setup("cudaEventSynchronize", &decls->cusan_sync_callback.f);
+}
+llvm::SmallVector<Value*> CudaEventSyncCallback::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  //( void* event)
+  assert(args.size() == 1);
+  return {irb.getInt8(2)};
+}
+llvm::SmallVector<Value*, 1> CudaEventSyncCallback::map_return_value(IRBuilder<>& irb, Value* result) {
+  return {result};
+}
+
+
+CudaDeviceSyncCallback::CudaDeviceSyncCallback(callback::FunctionDecl* decls) {
+  setup("cudaDeviceSynchronize", &decls->cusan_sync_callback.f);
+}
+llvm::SmallVector<Value*> CudaDeviceSyncCallback::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  //( )
+  assert(args.size() == 0);
+  return {irb.getInt8(0)};
+}
+llvm::SmallVector<Value*, 1> CudaDeviceSyncCallback::map_return_value(IRBuilder<>& irb, Value* result) {
+  return {result};
+}
+
+
+
 }  // namespace cusan::transform
