@@ -22,7 +22,7 @@ jobs:
             -type f \
             -a \( -name "*.c" -o -name "*.cpp" -o -name "*.h" \) \
             -print0 \
-            | xargs -0 clang-format-18 -i
+            | xargs -0 clang-format-18 style=file --fallback-style=none -i
 
       - name: Format check
         run: |
