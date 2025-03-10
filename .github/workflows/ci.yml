@@ -45,7 +45,7 @@ jobs:
             os: ubuntu-22.04
             preset: release
             cuda: 11.8.0
-          - llvm-version: 18
+          - llvm-version: 19
             os: ubuntu-24.04
             preset: release
             cuda: 12.6.0
@@ -54,6 +54,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: LLVM apt
+        if: ${{ matrix.llvm-version == 19 }}
+        run: |
+          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-19 main" | sudo tee /etc/apt/sources.list.d/llvm-19.list
 
       - name: Update apt
         run: sudo apt-get update
