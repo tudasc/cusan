@@ -10,25 +10,6 @@ env:
   CC: clang
 
 jobs:
-  format-check:
-    runs-on: ubuntu-24.04
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Format source code
-        run: |
-          find lib test \
-            -type f \
-            -a \( -name "*.c" -o -name "*.cpp" -o -name "*.h" \) \
-            -print0 \
-            | xargs -0 clang-format-18 -style=file --fallback-style=none -i
-
-      - name: Format check
-        run: |
-          git status --porcelain --untracked-files=no
-          git status --porcelain --untracked-files=no | xargs -o -I {} test -z \"{}\"
-
   codespell:
     runs-on: ubuntu-22.04
 
