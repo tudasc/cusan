@@ -11,15 +11,13 @@
 
 namespace cusan::runtime {
 
-
-
-DeviceID get_current_device_id(){
+DeviceID get_current_device_id() {
   DeviceID res;
   cudaGetDevice(&res);
   return res;
 }
 
-cusan_MemcpyKind infer_memcpy_direction(const void* target, const void* from) {
+cusan_memcpy_kind infer_memcpy_direction(const void* target, const void* from) {
   cudaDeviceProp prop;
   cudaGetDeviceProperties(&prop, 0);
   assert(prop.unifiedAddressing && "Can only use default direction for memcpy when Unified memory is supported.");

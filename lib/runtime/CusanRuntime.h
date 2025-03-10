@@ -19,12 +19,12 @@ typedef enum cusan_memcpy_kind_t : unsigned int {
   cusan_MemcpyDeviceToHost   = 2,
   cusan_MemcpyDeviceToDevice = 3,
   cusan_MemcpyDefault        = 4,
-} cusan_MemcpyKind;
+} cusan_memcpy_kind;
 
 typedef enum cusan_stream_create_flags_t : unsigned int {
   cusan_StreamFlagsDefault     = 0,
   cusan_StreamFlagsNonBlocking = 1,
-} cusan_StreamCreateFlags;
+} cusan_stream_create_flags;
 #ifdef __cplusplus
 }
 #endif
@@ -35,7 +35,7 @@ using TsanFiber = void*;
 using Event     = const void*;
 using RawStream = const void*;
 using DeviceID  = int;
-cusan_MemcpyKind infer_memcpy_direction(const void* target, const void* from);
+cusan_memcpy_kind infer_memcpy_direction(const void* target, const void* from);
 DeviceID get_current_device_id();
 }  // namespace cusan::runtime
 using cusan::runtime::DeviceID;
@@ -61,7 +61,7 @@ void _cusan_set_device(DeviceID device);
 void _cusan_choose_device(DeviceID* device);
 
 void _cusan_sync_stream(RawStream stream);
-void _cusan_create_stream(RawStream* stream, cusan_StreamCreateFlags flags);
+void _cusan_create_stream(RawStream* stream, cusan_stream_create_flags flags);
 void _cusan_stream_query(RawStream stream, unsigned int err);
 
 void _cusan_sync_event(Event event);
@@ -71,17 +71,17 @@ void _cusan_event_query(Event event, unsigned int err);
 void _cusan_stream_wait_event(RawStream stream, Event event, unsigned int flags);
 void _cusan_stream_wait_event(RawStream stream, Event event, unsigned int flags);
 
-void _cusan_memcpy(void* target, const void* from, size_t count, cusan_MemcpyKind);
-void _cusan_memcpy_async(void* target, const void* from, size_t count, cusan_MemcpyKind kind, RawStream stream);
+void _cusan_memcpy(void* target, const void* from, size_t count, cusan_memcpy_kind);
+void _cusan_memcpy_async(void* target, const void* from, size_t count, cusan_memcpy_kind kind, RawStream stream);
 void _cusan_memcpy_2d(void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height,
-                      cusan_MemcpyKind);
+                      cusan_memcpy_kind);
 void _cusan_memcpy_2d_async(void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height,
-                            cusan_MemcpyKind, RawStream stream);
+                            cusan_memcpy_kind, RawStream stream);
 
 void _cusan_memset(void* target, size_t count);
 void _cusan_memset_async(void* target, size_t count, RawStream stream);
-void _cusan_memset_2d(void* target, size_t pitch, size_t width, size_t height, cusan_MemcpyKind);
-void _cusan_memset_2d_async(void* target, size_t pitch, size_t width, size_t height, cusan_MemcpyKind,
+void _cusan_memset_2d(void* target, size_t pitch, size_t width, size_t height, cusan_memcpy_kind);
+void _cusan_memset_2d_async(void* target, size_t pitch, size_t width, size_t height, cusan_memcpy_kind,
                             RawStream stream);
 
 void _cusan_host_alloc(void** ptr, size_t size, unsigned int flags);
@@ -97,9 +97,9 @@ typedef enum cusan_sync_type_t : unsigned char {
   cusan_Device = 0,
   cusan_Stream = 1,
   cusan_Event  = 2,
-} cusan_SyncType;
+} cusan_sync_type;
 
-void cusan_sync_callback(cusan_SyncType /*type*/, unsigned int /*return_value*/);
+void cusan_sync_callback(cusan_sync_type /*type*/, unsigned int /*return_value*/);
 
 #ifdef __cplusplus
 }
