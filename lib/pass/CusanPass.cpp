@@ -60,7 +60,7 @@ class LegacyCusanPass : public llvm::ModulePass {
  public:
   static char ID;  // NOLINT
 
-  LegacyCusanPass() : ModulePass(ID){};
+  LegacyCusanPass() : ModulePass(ID) {};
 
   bool runOnModule(llvm::Module& module) override;
 
@@ -183,7 +183,7 @@ bool CusanPass::runOnFunc(llvm::Function& function) {
   modified |= transform::CudaChooseDevice(&cusan_decls_).instrument(function);
   modified |= transform::CudaSetDevice(&cusan_decls_).instrument(function);
 
-  //callbacks
+  // callbacks
   modified |= transform::CudaDeviceSyncCallback(&cusan_decls_).instrument(function);
   modified |= transform::CudaEventSyncCallback(&cusan_decls_).instrument(function);
   modified |= transform::CudaStreamSyncCallback(&cusan_decls_).instrument(function);

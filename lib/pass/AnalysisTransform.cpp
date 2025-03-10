@@ -656,8 +656,6 @@ llvm::SmallVector<Value*, 1> CudaEventQuery::map_return_value(IRBuilder<>& irb, 
   return {result};
 }
 
-
-
 CudaStreamSyncCallback::CudaStreamSyncCallback(callback::FunctionDecl* decls) {
   setup("cudaStreamSynchronize", &decls->cusan_sync_callback.f);
 }
@@ -682,7 +680,6 @@ llvm::SmallVector<Value*, 1> CudaEventSyncCallback::map_return_value(IRBuilder<>
   return {result};
 }
 
-
 CudaDeviceSyncCallback::CudaDeviceSyncCallback(callback::FunctionDecl* decls) {
   setup("cudaDeviceSynchronize", &decls->cusan_sync_callback.f);
 }
@@ -694,7 +691,5 @@ llvm::SmallVector<Value*> CudaDeviceSyncCallback::map_arguments(IRBuilder<>& irb
 llvm::SmallVector<Value*, 1> CudaDeviceSyncCallback::map_return_value(IRBuilder<>& irb, Value* result) {
   return {result};
 }
-
-
 
 }  // namespace cusan::transform
