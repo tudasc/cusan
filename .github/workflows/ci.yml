@@ -10,25 +10,6 @@ env:
   CC: clang
 
 jobs:
-  format-check:
-    runs-on: ubuntu-22.04
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Format source code
-        run: |
-          find lib test \
-            -type f \
-            -a \( -name "*.c" -o -name "*.cpp" -o -name "*.h" \) \
-            -print0 \
-            | xargs -0 clang-format-14 -i
-
-      - name: Format check
-        run: |
-          git status --porcelain --untracked-files=no
-          git status --porcelain --untracked-files=no | xargs -o -I {} test -z \"{}\"
-
   codespell:
     runs-on: ubuntu-22.04
 
@@ -44,11 +25,22 @@ jobs:
           - llvm-version: 14
             os: ubuntu-22.04
             preset: release
+            cuda: 11.8.0
+          - llvm-version: 19
+            os: ubuntu-24.04
+            preset: release
+            cuda: 12.6.0
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: LLVM apt
+        if: ${{ matrix.llvm-version == 19 }}
+        run: |
+          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-19 main" | sudo tee /etc/apt/sources.list.d/llvm-19.list
 
       - name: Update apt
         run: sudo apt-get update
@@ -56,7 +48,7 @@ jobs:
       - uses: Jimver/cuda-toolkit@v0.2.19
         id: cuda-toolkit
         with:
-          cuda: '11.8.0'
+          cuda: '${{ matrix.cuda }}'
           method: network
           sub-packages: '["nvcc", "cudart", "cudart-dev"]'
           non-cuda-sub-packages: '["libcurand", "libcurand-dev"]'

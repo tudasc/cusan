@@ -55,7 +55,7 @@ int main() {
   cudaSetDevice(0);
   write_kernel_delay<<<blocksPerGrid, threadsPerBlock>>>(managed_data, size, 1316134912);
 
-  // if we only have the later synchronize we will only syncrhonize the second device
+  // if we only have the later synchronize we will only synchronize the second device
 #ifdef CUSAN_SYNC
   cudaDeviceSynchronize();
 #endif

@@ -229,6 +229,25 @@ class CudaEventQuery : public SimpleInstrumenter<CudaEventQuery> {
   static llvm::SmallVector<Value*, 1> map_return_value(IRBuilder<>& irb, Value* result);
 };
 
+class CudaStreamSyncCallback : public SimpleInstrumenter<CudaStreamSyncCallback> {
+ public:
+  CudaStreamSyncCallback(callback::FunctionDecl* decls);
+  static llvm::SmallVector<Value*> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args);
+  static llvm::SmallVector<Value*, 1> map_return_value(IRBuilder<>& irb, Value* result);
+};
+class CudaEventSyncCallback : public SimpleInstrumenter<CudaEventSyncCallback> {
+ public:
+  CudaEventSyncCallback(callback::FunctionDecl* decls);
+  static llvm::SmallVector<Value*> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args);
+  static llvm::SmallVector<Value*, 1> map_return_value(IRBuilder<>& irb, Value* result);
+};
+class CudaDeviceSyncCallback : public SimpleInstrumenter<CudaDeviceSyncCallback> {
+ public:
+  CudaDeviceSyncCallback(callback::FunctionDecl* decls);
+  static llvm::SmallVector<Value*> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args);
+  static llvm::SmallVector<Value*, 1> map_return_value(IRBuilder<>& irb, Value* result);
+};
+
 }  // namespace transform
 }  // namespace cusan
 

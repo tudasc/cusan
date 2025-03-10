@@ -91,9 +91,7 @@ class Device {
 
   Device() : stats_recorder() {
     // every device has a default stream
-    {
-      register_stream(Device::kDefaultStream);
-    }
+    { register_stream(Device::kDefaultStream); }
     cpu_fiber_ = TsanGetCurrentFiber();
   }
 
@@ -469,7 +467,7 @@ void _cusan_create_event(Event*) {
   runtime.stats_recorder.inc_create_event_calls();
 }
 
-void _cusan_create_stream(RawStream* stream, cusan_StreamCreateFlags flags) {
+void _cusan_create_stream(RawStream* stream, cusan_stream_create_flags flags) {
   LOG_TRACE("[cusan]create stream with flags: " << flags
                                                 << " isNonBlocking: " << (bool)(flags & cusan_StreamFlagsNonBlocking))
   auto& runtime = Runtime::get().get_current_device();
@@ -620,10 +618,10 @@ void _cusan_memset_impl(void* target, size_t count) {
   // r.happens_after_stream(Runtime::default_stream));
 }
 
-void _cusan_memset_2d(void* target, size_t pitch, size_t, size_t height, cusan_MemcpyKind) {
+void _cusan_memset_2d(void* target, size_t pitch, size_t, size_t height, cusan_memcpy_kind) {
   _cusan_memset_impl(target, pitch * height);
 }
-void _cusan_memset_2d_async(void* target, size_t pitch, size_t, size_t height, cusan_MemcpyKind, RawStream stream) {
+void _cusan_memset_2d_async(void* target, size_t pitch, size_t, size_t height, cusan_memcpy_kind, RawStream stream) {
   _cusan_memset_async_impl(target, pitch * height, stream);
 }
 
@@ -638,7 +636,7 @@ void _cusan_memset_async(void* target, size_t count, RawStream stream) {
 }
 
 void _cusan_memcpy_async_impl(void* target, size_t write_size, const void* from, size_t read_size,
-                              cusan_MemcpyKind kind, RawStream stream) {
+                              cusan_memcpy_kind kind, RawStream stream) {
   auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_memcpy_async_calls();
   if (kind == cusan_MemcpyHostToHost && CUSAN_SYNC_DETAIL_LEVEL == 1) {
@@ -670,7 +668,7 @@ void _cusan_memcpy_async_impl(void* target, size_t write_size, const void* from,
   }
 }
 
-void _cusan_memcpy_impl(void* target, size_t write_size, const void* from, size_t read_size, cusan_MemcpyKind kind) {
+void _cusan_memcpy_impl(void* target, size_t write_size, const void* from, size_t read_size, cusan_memcpy_kind kind) {
   // TODO verify that the memcpy2d beheaviour is actually the same as normal memcpy
 
   if (kind == cusan_MemcpyDefault) {
@@ -751,7 +749,7 @@ void _cusan_memcpy_impl(void* target, size_t write_size, const void* from, size_
 }
 
 void _cusan_memcpy_2d_async(void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height,
-                            cusan_MemcpyKind kind, RawStream stream) {
+                            cusan_memcpy_kind kind, RawStream stream) {
   LOG_TRACE("[cusan]MemcpyAsync" << width * height << " bytes to:" << target)
 
   size_t read_size  = spitch * height;
@@ -759,20 +757,23 @@ void _cusan_memcpy_2d_async(void* target, size_t dpitch, const void* from, size_
   _cusan_memcpy_async_impl(target, write_size, from, read_size, kind, stream);
 }
 
-void _cusan_memcpy_async(void* target, const void* from, size_t count, cusan_MemcpyKind kind, RawStream stream) {
+void _cusan_memcpy_async(void* target, const void* from, size_t count, cusan_memcpy_kind kind, RawStream stream) {
   LOG_TRACE("[cusan]MemcpyAsync" << count << " bytes to:" << target)
   _cusan_memcpy_async_impl(target, count, from, count, kind, stream);
 }
 
 void _cusan_memcpy_2d(void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height,
-                      cusan_MemcpyKind kind) {
+                      cusan_memcpy_kind kind) {
   LOG_TRACE("[cusan]Memcpy2d " << width * height << " from:" << from << " to:" << target);
   size_t read_size  = spitch * height;
   size_t write_size = dpitch * height;
   _cusan_memcpy_impl(target, write_size, from, read_size, kind);
 }
 
-void _cusan_memcpy(void* target, const void* from, size_t count, cusan_MemcpyKind kind) {
+void _cusan_memcpy(void* target, const void* from, size_t count, cusan_memcpy_kind kind) {
   LOG_TRACE("[cusan]Memcpy " << count << " from:" << from << " to:" << target);
   _cusan_memcpy_impl(target, count, from, count, kind);
+}
+
+void cusan_sync_callback(cusan_sync_type /*type*/, unsigned int /*return_value*/) {
 }

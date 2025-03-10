@@ -46,7 +46,7 @@ struct FunctionDecl {
   CusanFunction cusan_device_free{"_cusan_device_free"};
   CusanFunction cusan_stream_query{"_cusan_stream_query"};
   CusanFunction cusan_event_query{"_cusan_event_query"};
-
+  CusanFunction cusan_sync_callback{"cusan_sync_callback"};
   void initialize(llvm::Module& m);
 };
 
