@@ -1,8 +1,8 @@
 // clang-format off
-// RUN: %wrapper-cxx %clang_args %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
+// RUN: %wrapper-cc %clang_args -x cuda -gencode arch=compute_70,code=sm_70 %s -o %cusan_test_dir/%basename_t.exe
 // RUN: %tsan-options %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s
 
-// RUN: %wrapper-cxx -DCUSAN_SYNC %clang_args %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
+// RUN: %wrapper-cc -DCUSAN_SYNC %clang_args -x cuda -gencode arch=compute_70,code=sm_70 %s -o %cusan_test_dir/%basename_t-sync.exe
 // RUN: %tsan-options %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
 
 // clang-format on
@@ -13,8 +13,8 @@
 // CHECK-SYNC-NOT: data race
 // CHECK-SYNC-NOT: [Error] sync
 
-#include <cstdio>
 #include <cuda_runtime.h>
+#include <stdio.h>
 
 __global__ void write_kernel_delay(int* arr, const int N, const unsigned int delay) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -44,22 +44,18 @@ int main() {
     return 1;
   }
 
-
   cudaSetDevice(0);
   cudaMallocManaged(&managed_data, size * sizeof(int));
   cudaMemset(managed_data, 0, size * sizeof(int));
-
 
   cudaSetDevice(1);
   cudaMallocManaged(&managed_data2, size * sizeof(int));
   cudaMemset(managed_data2, 0, size * sizeof(int));
 
-
-
   cudaSetDevice(0);
   write_kernel_delay<<<blocksPerGrid, threadsPerBlock>>>(managed_data, size, 1316134912);
 
-  //if we only have the later synchronize we will only syncrhonize the second device
+  // if we only have the later synchronize we will only syncrhonize the second device
 #ifdef CUSAN_SYNC
   cudaDeviceSynchronize();
 #endif
@@ -74,14 +70,12 @@ int main() {
       break;
     }
   }
-    for (int i = 0; i < size; i++) {
+  for (int i = 0; i < size; i++) {
     if (managed_data2[i] == 0) {
       printf("[Error] sync managed_data2 %i\n", managed_data[i]);
       break;
     }
   }
-
-
 
   cudaFree(managed_data);
   cudaFree(managed_data2);
