@@ -1,9 +1,9 @@
 // clang-format off
-// RUN: %wrapper-mpicxx %clang_args %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
-// RUN: %tsan-options %mpi-exec -n 1 %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s -DFILENAME=%s
+// RUN: %wrapper-cxx %clang_args -x cuda -g %s -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
+// RUN: %tsan-options %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s -DFILENAME=%s
 
-// RUN: %wrapper-mpicxx -DCUSAN_SYNC %clang_args %s -x cuda -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
-// RUN: %tsan-options %mpi-exec -n 1 %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-SYNC
+// RUN: %wrapper-cxx -DCUSAN_SYNC %clang_args -x cuda -g %s -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
+// RUN: %tsan-options %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-SYNC
 
 // CHECK-DAG: data race
 
@@ -11,7 +11,7 @@
 
 // clang-format on
 
-#include "../support/gpu_mpi.h"
+// #include "../support/gpu_mpi.h"
 
 #include <unistd.h>
 
@@ -38,10 +38,6 @@ __global__ void reading_kernel(float* res, const float* read, const int N,
 }
 
 int main(int argc, char* argv[]) {
-  if (!has_gpu_aware_mpi()) {
-    printf("This example is designed for CUDA-aware MPI. Exiting.\n");
-    return 1;
-  }
   const int size            = 512;
   const int threadsPerBlock = size;
   const int blocksPerGrid   = (size + threadsPerBlock - 1) / threadsPerBlock;
