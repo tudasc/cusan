@@ -7,8 +7,8 @@
 #ifndef CUSAN_ANALYSISTRANSFORM_H
 #define CUSAN_ANALYSISTRANSFORM_H
 
+#include "../analysis/KernelAnalysis.h"
 #include "FunctionDecl.h"
-#include "analysis/KernelAnalysis.h"
 
 #include <llvm/Demangle/Demangle.h>
 #include <llvm/IR/Function.h>

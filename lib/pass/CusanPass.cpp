@@ -6,10 +6,10 @@
 
 #include "CusanPass.h"
 
+#include "../analysis/KernelAnalysis.h"
 #include "AnalysisTransform.h"
 #include "CommandLine.h"
 #include "FunctionDecl.h"
-#include "analysis/KernelAnalysis.h"
 #include "support/CudaUtil.h"
 #include "support/Logger.h"
 #include "support/Util.h"
@@ -28,6 +28,8 @@
 #include "llvm/Pass.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
+#include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils/Mem2Reg.h"
 
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/IR/IRBuilder.h>
@@ -58,7 +60,7 @@ class LegacyCusanPass : public llvm::ModulePass {
  public:
   static char ID;  // NOLINT
 
-  LegacyCusanPass() : ModulePass(ID) {};
+  LegacyCusanPass() : ModulePass(ID){};
 
   bool runOnModule(llvm::Module& module) override;
 
@@ -70,9 +72,24 @@ bool LegacyCusanPass::runOnModule(llvm::Module& module) {
   return modified;
 }
 
-llvm::PreservedAnalyses CusanPass::run(llvm::Module& module, llvm::ModuleAnalysisManager&) {
+llvm::PreservedAnalyses CusanPass::run(llvm::Module& module, llvm::ModuleAnalysisManager& AM) {
+  auto promote_pass_preserved = llvm::PreservedAnalyses::all();
+  const bool is_device_code   = llvm::StringRef(module.getTargetTriple()).contains("nvptx64-nvidia-cuda");
+  if (is_device_code) {
+    ModulePassManager module_pass_manager;
+    module_pass_manager.addPass(createModuleToFunctionPassAdaptor(llvm::PromotePass()));
+    promote_pass_preserved = module_pass_manager.run(module, AM);
+  }
+
   const auto changed = runOnModule(module);
-  return changed ? llvm::PreservedAnalyses::none() : llvm::PreservedAnalyses::all();
+
+  if (!is_device_code) {
+    cusan::util::dump_module_if(module, "CUSAN_DUMP_HOST_IR");
+  } else {
+    cusan::util::dump_module_if(module, "CUSAN_DUMP_DEVICE_IR");
+  }
+
+  return changed ? llvm::PreservedAnalyses::none() : promote_pass_preserved;
 }
 
 bool CusanPass::runOnModule(llvm::Module& module) {
@@ -112,7 +129,7 @@ bool CusanPass::runOnKernelFunc(llvm::Function& function) {
   if (function.isDeclaration()) {
     return false;
   }
-  LOG_DEBUG("[DEVICE] running on kernel: " << function.getName());
+  LOG_DEBUG("[Device] running on kernel: " << function.getName());
   auto data = device::analyze_device_kernel(&function);
   if (data) {
     if (!cl_cusan_quiet.getValue()) {
@@ -186,6 +203,11 @@ bool CusanPass::runOnFunc(llvm::Function& function) {
 //.....................
 llvm::PassPluginLibraryInfo getCusanPassPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, "cusan", LLVM_VERSION_STRING, [](PassBuilder& pass_builder) {
+            pass_builder.registerPipelineStartEPCallback([](auto& MPM, OptimizationLevel) {
+              // LOG_DEBUG("Opt " << l.getSizeLevel() << " " << l.getSpeedupLevel() << " " << l.O0.getSpeedupLevel())
+              MPM.addPass(cusan::CusanPass());
+            });
+#if (LLVM_VERSION_MAJOR == 14) && !defined(CUSAN_TYPEART)
             pass_builder.registerPipelineParsingCallback(
                 [](StringRef name, ModulePassManager& module_pm, ArrayRef<PassBuilder::PipelineElement>) {
                   if (name == "cusan") {
@@ -194,6 +216,7 @@ llvm::PassPluginLibraryInfo getCusanPassPluginInfo() {
                   }
                   return false;
                 });
+#endif
           }};
 }
 

@@ -10,6 +10,7 @@
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/Module.h"
 
 #include <string>
 #include <type_traits>
@@ -33,7 +34,7 @@ inline std::string demangle(String&& s) {
 #if LLVM_VERSION_MAJOR >= 15
   auto demangle = llvm::itaniumDemangle(name.data(), false);
 #else
-  auto* demangle = llvm::itaniumDemangle(name.data(), nullptr, nullptr, nullptr);
+  auto* demangle      = llvm::itaniumDemangle(name.data(), nullptr, nullptr, nullptr);
 #endif
   if (demangle && !std::string(demangle).empty()) {
     return {demangle};
@@ -70,6 +71,14 @@ inline std::string try_demangle_fully(const T& site) {
     return demangle_fully(site.getName());
   } else {
     return demangle_fully(site);
+  }
+}
+
+inline void dump_module_if(const llvm::Module& module, std::string_view env_var,
+                           llvm::raw_ostream& out_s = llvm::outs()) {
+  const auto* env_val = getenv(env_var.data());
+  if (env_val) {
+    module.print(out_s, nullptr);
   }
 }
 

@@ -1,7 +1,7 @@
 // clang-format off
+// RUN: %rm-file %t.yaml 
 
-// RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
-// clang-format on
+// RUN: %wrapper-mpicc %clang-pass-only-args --cusan-kernel-data=%t.yaml -x cuda --cuda-gpu-arch=sm_72 %s 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 
 // CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamCreate
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
@@ -19,6 +19,8 @@
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_device_free
 // CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamDestroy
 // CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamDestroy
+
+// clang-format on
 
 #include <cstdio>
 #include <cuda_runtime.h>

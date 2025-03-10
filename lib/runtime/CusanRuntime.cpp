@@ -91,7 +91,9 @@ class Device {
 
   Device() : stats_recorder() {
     // every device has a default stream
-    { register_stream(Device::kDefaultStream); }
+    {
+      register_stream(Device::kDefaultStream);
+    }
     cpu_fiber_ = TsanGetCurrentFiber();
   }
 

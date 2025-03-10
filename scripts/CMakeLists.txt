@@ -150,7 +150,11 @@ if(MPI_FOUND)
   set_cusan_mpi_compiler()
 endif()
 
-set(CUSAN_WRAPPER cusan-wrapper.in)
+if(CUSAN_TYPEART)
+  set(CUSAN_WRAPPER cusan-wrapper.in)
+else()
+  set(CUSAN_WRAPPER cusan-wrapperv2.in)
+endif()
 
 if(NOT CUSAN_TYPEART)
   add_library(typeart_runtime_mock SHARED IMPORTED)
@@ -219,16 +223,6 @@ configure_cusan_script(
   ${CUSAN_WRAPPER} cusan-clang++-test
   COMPILER ${CUSAN_CLANGCXX_EXEC}
 )
-
-#configure_cusan_script(cusan-tmpl.sh.in run.sh)
-#if(CUSAN_TYPEART)
-  configure_cusan_script(
-    cusan-tmpl.sh.in apply.sh
-    APPLY_MODE ON
-  )
-#endif()
-
-configure_cusan_script(${CUSAN_WRAPPER} cusan-clang.sh)
 
 install(
   PROGRAMS
