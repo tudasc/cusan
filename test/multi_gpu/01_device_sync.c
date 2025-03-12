@@ -5,6 +5,8 @@
 // RUN: %wrapper-cc -DCUSAN_SYNC %clang_args -x cuda -gencode arch=compute_70,code=sm_70 %s -o %cusan_test_dir/%basename_t-sync.exe
 // RUN: %tsan-options %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
 
+// REQUIRES: multigpu
+
 // clang-format on
 
 // CHECK-DAG: data race
