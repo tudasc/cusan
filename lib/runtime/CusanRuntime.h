@@ -94,12 +94,12 @@ void _cusan_device_alloc(void** ptr, size_t size);
 void _cusan_device_free(void* ptr);
 
 typedef enum cusan_sync_type_t : unsigned char {
-  cusan_Device = 0,
-  cusan_Stream = 1,
-  cusan_Event  = 2,
+  cusan_Device = 0, //second argument is a nullptr
+  cusan_Stream = 1, //second argument is the stream pointer
+  cusan_Event  = 2, //second argument is the event pointer
 } cusan_sync_type;
 
-void cusan_sync_callback(cusan_sync_type /*type*/, unsigned int /*return_value*/);
+void cusan_sync_callback(cusan_sync_type /*type*/, const void* /*event or stream*/, unsigned int /*return_value*/);
 
 #ifdef __cplusplus
 }

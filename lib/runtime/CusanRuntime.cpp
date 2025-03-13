@@ -775,5 +775,16 @@ void _cusan_memcpy(void* target, const void* from, size_t count, cusan_memcpy_ki
   _cusan_memcpy_impl(target, count, from, count, kind);
 }
 
-void cusan_sync_callback(cusan_sync_type /*type*/, unsigned int /*return_value*/) {
+void cusan_sync_callback(cusan_sync_type type, const void* event_or_stream, unsigned int return_value) {
+  //switch (type) {
+  //  case cusan_Device:
+  //    printf("Device sync return value %i\n", return_value);
+  //    break;
+  //  case cusan_Stream:
+  //    printf("Stream %#x sync return value %i\n", event_or_stream, return_value);
+  //    break;
+  //  case cusan_Event:
+  //    printf("Event %#x sync return value %i\n", event_or_stream, return_value);
+  //    break;
+  //}
 }

@@ -662,7 +662,7 @@ CudaStreamSyncCallback::CudaStreamSyncCallback(callback::FunctionDecl* decls) {
 llvm::SmallVector<Value*> CudaStreamSyncCallback::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
   //( void* stream)
   assert(args.size() == 1);
-  return {irb.getInt8(1)};
+  return {irb.getInt8(1), args[0]};
 }
 llvm::SmallVector<Value*, 1> CudaStreamSyncCallback::map_return_value(IRBuilder<>& irb, Value* result) {
   return {result};
@@ -674,7 +674,7 @@ CudaEventSyncCallback::CudaEventSyncCallback(callback::FunctionDecl* decls) {
 llvm::SmallVector<Value*> CudaEventSyncCallback::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
   //( void* event)
   assert(args.size() == 1);
-  return {irb.getInt8(2)};
+  return {irb.getInt8(2), args[0]};
 }
 llvm::SmallVector<Value*, 1> CudaEventSyncCallback::map_return_value(IRBuilder<>& irb, Value* result) {
   return {result};
@@ -686,7 +686,7 @@ CudaDeviceSyncCallback::CudaDeviceSyncCallback(callback::FunctionDecl* decls) {
 llvm::SmallVector<Value*> CudaDeviceSyncCallback::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
   //( )
   assert(args.size() == 0);
-  return {irb.getInt8(0)};
+  return {irb.getInt8(0), ConstantPointerNull::get(irb.getPtrTy())};
 }
 llvm::SmallVector<Value*, 1> CudaDeviceSyncCallback::map_return_value(IRBuilder<>& irb, Value* result) {
   return {result};

@@ -136,7 +136,7 @@ void FunctionDecl::initialize(llvm::Module& module) {
   make_function(cusan_choose_device, arg_types_choose_device);
 
   //  u8 evenType, u32 returnValue
-  ArgTypes arg_types_sync_callback = {Type::getInt8Ty(c), Type::getInt32Ty(c)};
+  ArgTypes arg_types_sync_callback = {Type::getInt8Ty(c), void_ptr, Type::getInt32Ty(c)};
   make_function(cusan_sync_callback, arg_types_sync_callback);
 }
 
