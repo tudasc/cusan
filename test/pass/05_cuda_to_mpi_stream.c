@@ -10,6 +10,8 @@
 // CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamSynchronize
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_stream
 
+// REQUIRES: mpi
+
 // clang-format on
 
 #include "../support/gpu_mpi.h"

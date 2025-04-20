@@ -5,7 +5,7 @@
 // RUN: %wrapper-mpicxx -DCUSAN_SYNC %clang_args -x cuda %s -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
 // RUN: %cusan_ldpreload %tsan-options %mpi-exec -n 2 %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
 
-// REQUIRES: mpiexec
+// REQUIRES: mpi
 
 // CHECK-DAG: data race
 

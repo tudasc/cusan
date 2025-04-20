@@ -175,7 +175,6 @@ if(NOT CUSAN_TYPEART)
   )
 endif()
 
-find_package(MPI)
 if(MPI_C_FOUND)
   configure_cusan_script(
     ${CUSAN_WRAPPER} cusan-mpicc${CMAKE_DEBUG_POSTFIX}
