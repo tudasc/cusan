@@ -41,6 +41,8 @@ option(CUSAN_FIBERPOOL "Use external fiber pool to manage ThreadSanitizer fibers
 option(CUSAN_SOFTCOUNTER "Print runtime counters" OFF)
 option(CUSAN_SYNC_DETAIL_LEVEL "Enable implicit sync analysis of memcpy/memset" ON)
 
+option(CUSAN_DEVICE_SYNC_CALLBACKS "Enable runtime callbacks after sync calls" ON)
+
 option(CUSAN_TEST_WORKAROUNDS "Enable workarounds for MPI + TSan regarding runtime tests" ON)
 mark_as_advanced(CUSAN_TEST_WORKAROUNDS)
 

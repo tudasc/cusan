@@ -12,7 +12,7 @@
 #include "analysis/KernelModel.h"
 #include "support/Logger.h"
 #include "StatsCounter.h"
-#if CUSAN_SOFTCOUNTER
+#ifdef CUSAN_SOFTCOUNTER
 #include "support/Table.h"
 #endif
 #include "TSanInterface.h"
@@ -217,7 +217,7 @@ class Device {
   void output_statistics() {
 #undef cusan_stat_handle
 #define cusan_stat_handle(name) table.put(Row::make(#name, stats_recorder.get_##name()));
-#if CUSAN_SOFTCOUNTER
+#ifdef CUSAN_SOFTCOUNTER
     Table table{"Cusan device statistics"};
 #ifdef CUSAN_FIBERPOOL
     table.put(Row::make("Fiberpool", 1));
@@ -244,7 +244,7 @@ class Runtime {
   std::map<Event, std::pair<TsanFiber, Device*>> events_;
   int32_t current_device_;
   bool init_;
-#if CUSAN_SOFTCOUNTER
+#ifdef CUSAN_SOFTCOUNTER
   softcounter::AtomicCounter device_switches = 0;
 #endif
  public:
@@ -262,7 +262,7 @@ class Runtime {
 
   void operator=(const Runtime&) = delete;
 
-#if CUSAN_SOFTCOUNTER
+#ifdef CUSAN_SOFTCOUNTER
   inline void inc_device_switches() {
     this->device_switches++;
   }
@@ -286,7 +286,7 @@ class Runtime {
     if (devices_.find(device) == devices_.end()) {
       devices_[device];
     }
-#if CUSAN_SOFTCOUNTER
+#ifdef CUSAN_SOFTCOUNTER
     if (current_device_ != device) {
       inc_device_switches();
     }
@@ -312,7 +312,7 @@ class Runtime {
   Runtime() = default;
 
   ~Runtime() {
-#if CUSAN_SOFTCOUNTER
+#ifdef CUSAN_SOFTCOUNTER
     for (auto& [_, device] : devices_) {
       device.output_statistics();
     }
@@ -595,7 +595,8 @@ void _cusan_memset_impl(void* target, size_t count) {
   auto& runtime = Runtime::get().get_current_device();
   runtime.stats_recorder.inc_memset_calls();
   runtime.switch_to_stream(Device::kDefaultStream);
-  LOG_TRACE("[cusan]    " << "Write to " << target << " with size: " << count)
+  LOG_TRACE("[cusan]    "
+            << "Write to " << target << " with size: " << count)
   TsanMemoryWritePC(target, count, __builtin_return_address(0));
   runtime.stats_recorder.inc_TsanMemoryWrite();
   runtime.happens_before();
@@ -604,10 +605,12 @@ void _cusan_memset_impl(void* target, size_t count) {
   auto* alloc_info = runtime.get_allocation_info(target);
   // if we couldn't find alloc info we just assume the worst and don't sync
   if ((alloc_info && (alloc_info->is_pinned || alloc_info->is_managed)) || CUSAN_SYNC_DETAIL_LEVEL == 0) {
-    LOG_TRACE("[cusan]    " << "Memset is blocking")
+    LOG_TRACE("[cusan]    "
+              << "Memset is blocking")
     runtime.happens_after_stream(Device::kDefaultStream);
   } else {
-    LOG_TRACE("[cusan]    " << "Memset is not blocking")
+    LOG_TRACE("[cusan]    "
+              << "Memset is not blocking")
     if (!alloc_info) {
       LOG_DEBUG("[cusan]    Failed to get alloc info " << target);
     } else if (!alloc_info->is_pinned && !alloc_info->is_managed) {
@@ -775,16 +778,16 @@ void _cusan_memcpy(void* target, const void* from, size_t count, cusan_memcpy_ki
   _cusan_memcpy_impl(target, count, from, count, kind);
 }
 
-void cusan_sync_callback(cusan_sync_type type, const void* event_or_stream, unsigned int return_value) {
-  //switch (type) {
-  //  case cusan_Device:
-  //    printf("Device sync return value %i\n", return_value);
-  //    break;
-  //  case cusan_Stream:
-  //    printf("Stream %#x sync return value %i\n", event_or_stream, return_value);
-  //    break;
-  //  case cusan_Event:
-  //    printf("Event %#x sync return value %i\n", event_or_stream, return_value);
-  //    break;
-  //}
+void cusan_sync_callback(cusan_sync_type /*type*/, const void* /*event_or_stream*/, unsigned int /*return_value*/) {
+  // switch (type) {
+  //   case cusan_Device:
+  //     printf("Device sync return value %i\n", return_value);
+  //     break;
+  //   case cusan_Stream:
+  //     printf("Stream %#x sync return value %i\n", event_or_stream, return_value);
+  //     break;
+  //   case cusan_Event:
+  //     printf("Event %#x sync return value %i\n", event_or_stream, return_value);
+  //     break;
+  // }
 }
