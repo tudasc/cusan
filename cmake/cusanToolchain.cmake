@@ -26,7 +26,7 @@ string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}"
 )
 
 find_package(CUDAToolkit REQUIRED)
-find_package(MPI REQUIRED)
+find_package(MPI)
 
 option(CUSAN_TEST_CONFIGURE_IDE "Add targets for tests to help the IDE with completion etc." ON)
 mark_as_advanced(CUSAN_TEST_CONFIGURE_IDE)
