@@ -34,7 +34,7 @@ inline std::string demangle(String&& s) {
 #if LLVM_VERSION_MAJOR >= 15
   auto demangle = llvm::itaniumDemangle(name.data(), false);
 #else
-  auto* demangle      = llvm::itaniumDemangle(name.data(), nullptr, nullptr, nullptr);
+  auto* demangle = llvm::itaniumDemangle(name.data(), nullptr, nullptr, nullptr);
 #endif
   if (demangle && !std::string(demangle).empty()) {
     return {demangle};

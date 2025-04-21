@@ -180,6 +180,15 @@ bool CusanPass::runOnFunc(llvm::Function& function) {
   modified |= transform::StreamCreateWithFlagsInstrumenter(&cusan_decls_).instrument(function);
   modified |= transform::StreamCreateWithPriorityInstrumenter(&cusan_decls_).instrument(function);
   modified |= transform::CudaMallocPitch(&cusan_decls_).instrument(function);
+  modified |= transform::CudaChooseDevice(&cusan_decls_).instrument(function);
+  modified |= transform::CudaSetDevice(&cusan_decls_).instrument(function);
+
+  // callbacks
+#ifdef CUSAN_DEVICE_SYNC_CALLBACKS
+  modified |= transform::CudaDeviceSyncCallback(&cusan_decls_).instrument(function);
+  modified |= transform::CudaEventSyncCallback(&cusan_decls_).instrument(function);
+  modified |= transform::CudaStreamSyncCallback(&cusan_decls_).instrument(function);
+#endif
 
   auto data_for_host = host::kernel_model_for_stub(&function, this->kernel_models_);
   if (data_for_host) {

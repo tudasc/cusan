@@ -14,6 +14,7 @@ mark_as_advanced(LLVM_CUSAN_TRANSFORMPASS_LINK_INTO_TOOLS)
 target_compile_definitions(cusan_TransformPass
   PRIVATE
   $<$<BOOL:${CUSAN_TYPEART}>:CUSAN_TYPEART=1>
+  $<$<BOOL:${CUSAN_DEVICE_SYNC_CALLBACKS}>:CUSAN_DEVICE_SYNC_CALLBACKS=1>
 )
 
 set_target_properties(

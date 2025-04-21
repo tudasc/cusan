@@ -3,6 +3,8 @@
 
 // RUN: %wrapper-mpicc %clang-pass-only-args --cusan-kernel-data=%t.yaml -x cuda --cuda-gpu-arch=sm_72 %s 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 
+// REQUIRES: mpi
+
 // CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamCreate
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
 // CHECK-LLVM-IR: {{call|invoke}} i32 @cudaStreamSynchronize

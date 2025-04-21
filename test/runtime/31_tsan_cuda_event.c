@@ -11,7 +11,7 @@
 
 // CHECK-SYNC-NOT: data race
 
-#include "../support/gpu_mpi.h"
+// #include "../support/gpu_mpi.h"
 
 #include <unistd.h>
 

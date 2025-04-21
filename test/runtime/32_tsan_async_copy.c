@@ -1,9 +1,9 @@
 // clang-format off
-// RUN: %wrapper-mpicxx %clang_args -x cuda %s -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t.exe
-// RUN: %tsan-options %mpi-exec -n 2 %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s -DFILENAME=%s
+// RUN: %wrapper-cc %clang_args -x cuda -gencode arch=compute_70,code=sm_70 %s -o %cusan_test_dir/%basename_t.exe
+// RUN: %tsan-options %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s -DFILENAME=%s
 
-// RUN: %wrapper-mpicxx -DCUSAN_SYNC %clang_args -x cuda %s -gencode arch=compute_70,code=sm_70 -o %cusan_test_dir/%basename_t-sync.exe
-// RUN: %tsan-options %mpi-exec -n 2 %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-SYNC
+// RUN: %wrapper-cc -DCUSAN_SYNC %clang_args -x cuda -gencode arch=compute_70,code=sm_70 %s -o %cusan_test_dir/%basename_t-sync.exe
+// RUN: %tsan-options %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-SYNC
 
 // CHECK-DAG: data race
 // CHECK-DAG: [Error] sync
@@ -13,8 +13,7 @@
 
 // clang-format on
 
-#include "../support/gpu_mpi.h"
-
+#include <stdio.h>
 #include <unistd.h>
 
 __global__ void kernel(int* arr, const int N) {
@@ -32,11 +31,6 @@ __global__ void kernel(int* arr, const int N) {
 }
 
 int main(int argc, char* argv[]) {
-  if (!has_gpu_aware_mpi()) {
-    printf("This example is designed for CUDA-aware MPI. Exiting.\n");
-    return 1;
-  }
-
   cudaEvent_t first_finished_event;
   cudaEventCreate(&first_finished_event);
   cudaStream_t stream1;

@@ -31,6 +31,8 @@ config.cusan_pass = "$<TARGET_FILE_NAME:cusan::TransformPass>"
 config.cusan_mpi_interceptor = "$<TARGET_FILE:cusan::MPI_Interceptor>"
 config.cusan_use_workarounds = @CUSAN_TEST_WORKAROUND@
 config.cusan_typeart = @CUSAN_HAS_TYPEART@
+config.cusan_mpi = @CUSAN_HAS_MPI@
+config.cusan_sync_callback = @CUSAN_HAS_SYNC_CALLBACKS@
 
 # Let the main config do the real work.
 config.loaded_site_config = True

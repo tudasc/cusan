@@ -22,6 +22,8 @@
 // CHECK-NEXT: subarg: {{.*}}ptr: 0, rw: ReadWrite
 // CHECK-NOT: Handling Arg:
 
+// REQUIRES: mpi
+
 // clang-format on
 
 #include "../support/gpu_mpi.h"

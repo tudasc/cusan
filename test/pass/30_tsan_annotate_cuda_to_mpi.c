@@ -8,6 +8,8 @@
 // CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaFree
 // CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_device_free
 
+// REQUIRES: mpi
+
 // clang-format on
 
 #include "../support/gpu_mpi.h"

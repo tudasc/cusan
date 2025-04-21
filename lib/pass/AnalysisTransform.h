@@ -211,27 +211,9 @@ BasicInstrumenterDecl(CudaHostFree);
 BasicInstrumenterDecl(CudaMallocManaged);
 BasicInstrumenterDecl(CudaMalloc);
 BasicInstrumenterDecl(CudaFree);
-
-class CudaMallocPitch : public SimpleInstrumenter<CudaMallocPitch> {
- public:
-  CudaMallocPitch(callback::FunctionDecl* decls) {
-    setup("cudaMallocPitch", &decls->cusan_device_alloc.f);
-  }
-  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
-    //(void** devPtr, size_t* pitch, size_t width, size_t height )
-    assert(args.size() == 4);
-    auto* ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8Ty()->getPointerTo());
-
-    //"The function may pad the allocation"
-    //"*pitch by cudaMallocPitch() is the width in bytes of the allocation"
-    auto* pitch = irb.CreateLoad(irb.getIntPtrTy(irb.GetInsertBlock()->getModule()->getDataLayout()), args[1]);
-    // auto* width = args[2];
-    auto* height = args[3];
-
-    auto* real_size = irb.CreateMul(pitch, height);
-    return {ptr, real_size};
-  }
-};
+BasicInstrumenterDecl(CudaMallocPitch);
+BasicInstrumenterDecl(CudaSetDevice);
+BasicInstrumenterDecl(CudaChooseDevice);
 
 class CudaStreamQuery : public SimpleInstrumenter<CudaStreamQuery> {
  public:
@@ -243,6 +225,25 @@ class CudaStreamQuery : public SimpleInstrumenter<CudaStreamQuery> {
 class CudaEventQuery : public SimpleInstrumenter<CudaEventQuery> {
  public:
   CudaEventQuery(callback::FunctionDecl* decls);
+  static llvm::SmallVector<Value*> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args);
+  static llvm::SmallVector<Value*, 1> map_return_value(IRBuilder<>& irb, Value* result);
+};
+
+class CudaStreamSyncCallback : public SimpleInstrumenter<CudaStreamSyncCallback> {
+ public:
+  CudaStreamSyncCallback(callback::FunctionDecl* decls);
+  static llvm::SmallVector<Value*> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args);
+  static llvm::SmallVector<Value*, 1> map_return_value(IRBuilder<>& irb, Value* result);
+};
+class CudaEventSyncCallback : public SimpleInstrumenter<CudaEventSyncCallback> {
+ public:
+  CudaEventSyncCallback(callback::FunctionDecl* decls);
+  static llvm::SmallVector<Value*> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args);
+  static llvm::SmallVector<Value*, 1> map_return_value(IRBuilder<>& irb, Value* result);
+};
+class CudaDeviceSyncCallback : public SimpleInstrumenter<CudaDeviceSyncCallback> {
+ public:
+  CudaDeviceSyncCallback(callback::FunctionDecl* decls);
   static llvm::SmallVector<Value*> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args);
   static llvm::SmallVector<Value*, 1> map_return_value(IRBuilder<>& irb, Value* result);
 };
