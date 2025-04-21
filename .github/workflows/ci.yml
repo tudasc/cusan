@@ -30,6 +30,11 @@ jobs:
             os: ubuntu-24.04
             preset: release
             cuda: 12.6.0
+          - llvm-version: 19
+            os: ubuntu-24.04
+            preset: release
+            cuda: 12.6.0
+            cusan-option: -DCUSAN_DEVICE_SYNC_CALLBACKS=ON
 
     runs-on: ${{ matrix.os }}
 
@@ -70,7 +75,7 @@ jobs:
           echo "EXTERNAL_LIT=/usr/lib/llvm-${{ matrix.llvm-version }}/build/utils/lit/lit.py" >> $GITHUB_ENV
 
       - name: Configure CuSan
-        run: cmake -B build --preset ${{ matrix.preset }} -DLLVM_DIR=${LLVM_CMAKE_DIR} -DLLVM_EXTERNAL_LIT=${EXTERNAL_LIT}
+        run: cmake -B build --preset ${{ matrix.preset }} -DLLVM_DIR=${LLVM_CMAKE_DIR} -DLLVM_EXTERNAL_LIT=${EXTERNAL_LIT} ${{ matrix.cusan-option }}
 
       - name: Build CuSan
         run: cmake --build build --parallel 2
