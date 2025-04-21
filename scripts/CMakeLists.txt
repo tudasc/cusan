@@ -92,7 +92,7 @@ function(configure_cusan_script input output)
 endfunction()
 
 function(cusan_find_mpi_vendor_helper symbol ret_value)
-  find_package(MPI)
+  find_package(MPI QUIET)
 
   if(NOT MPI_FOUND)
     set(${ret_value} false)
