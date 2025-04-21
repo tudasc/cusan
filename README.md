@@ -109,12 +109,13 @@ $> cmake --build build --target install -- -j1
 
 ## Building CuSan
 
-CuSan is tested with LLVM version 14 and 18, and CMake version >= 3.20. Use CMake presets `develop` or `release`
+CuSan is tested with LLVM version 14, 18 and 19, and CMake version >= 3.20. Use CMake presets `develop` or `release`
 to build.
 
 ### Dependencies
 CuSan was tested on the TUDa Lichtenberg II cluster with:
 - System modules: `1) gcc/11.2.0 2) cuda/11.8 3) openmpi/4.1.6 4) git/2.40.0 5) python/3.10.10 6) clang/14.0.6 or 6) clang/18.1.8`
+- The MPI dependency is optional
 - Optional external libraries: [TypeART](https://github.com/tudasc/TypeART/tree/v1.9.0b-cuda.1), FiberPool (both default off)
 - Testing: llvm-lit, FileCheck
 - GPU: Tesla T4 and Tesla V100 (mostly: arch=sm_70)
@@ -132,14 +133,15 @@ $> cmake --build build --target install --parallel
 
 #### Build options
 
-| Option                       | Default | Description                                                                                       |
-|------------------------------|:-------:|---------------------------------------------------------------------------------------------------|
-| `CUSAN_TYPEART`              |  `OFF`  | Use TypeART library to track memory allocations.                                      |
-| `CUSAN_FIBERPOOL`            |  `OFF`  | Use external library to efficiently manage fibers creation .                                      |
-| `CUSAN_SOFTCOUNTER`          |  `OFF`  | Runtime stats for calls to ThreadSanitizer and CUDA-callbacks. Only use for stats collection, not race detection.   |
-| `CUSAN_SYNC_DETAIL_LEVEL`    |  `ON`   | Analyze, e.g., memcpy and memcpyasync w.r.t. arguments to determine implicit sync.                |
-| `CUSAN_LOG_LEVEL_RT`         |  `0`    | Granularity of runtime logger. 3 is most verbose, 0 is least. For release, set to 0.              |
-| `CUSAN_LOG_LEVEL_PASS`         |  `3`    | Granularity of pass plugin logger. 3 is most verbose, 0 is least. For release, set to 0.              |
+| Option                        | Default | Description                                                                                                        |
+|-------------------------------|--:-:----|--------------------------------------------------------------------------------------------------------------------|
+| `CUSAN_TYPEART`               | `OFF`   | Use TypeART library to track memory allocations.                                                                   |
+| `CUSAN_FIBERPOOL`             | `OFF`   | Use external library to efficiently manage fibers creation .                                                       |
+| `CUSAN_SOFTCOUNTER`           | `OFF`   | Runtime stats for calls to ThreadSanitizer and CUDA-callbacks. Only use for stats collection, not race detection.  |
+| `CUSAN_DEVICE_SYNC_CALLBACKS` | `OFF`   | Adds a callback after each CUDA sync call (device, stream, event) to our runtime including the calls return value. |
+| `CUSAN_SYNC_DETAIL_LEVEL`     | `ON`    | Analyze, e.g., memcpy and memcpyasync w.r.t. arguments to determine implicit sync.                                 |
+| `CUSAN_LOG_LEVEL_RT`          | `0`     | Granularity of runtime logger. 3 is most verbose, 0 is least. For release, set to 0.                               |
+| `CUSAN_LOG_LEVEL_PASS`        | `3`     | Granularity of pass plugin logger. 3 is most verbose, 0 is least. For release, set to 0.                           |
 
 ### Development 
 

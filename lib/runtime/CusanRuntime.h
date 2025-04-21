@@ -1,5 +1,5 @@
 // cusan library
-// Copyright (c) 2023-2024 cusan authors
+// Copyright (c) 2023-2025 cusan authors
 // Distributed under the BSD 3-Clause License license.
 // (See accompanying file LICENSE)
 // SPDX-License-Identifier: BSD-3-Clause
@@ -94,9 +94,9 @@ void _cusan_device_alloc(void** ptr, size_t size);
 void _cusan_device_free(void* ptr);
 
 typedef enum cusan_sync_type_t : unsigned char {
-  cusan_Device = 0, //second argument is a nullptr
-  cusan_Stream = 1, //second argument is the stream pointer
-  cusan_Event  = 2, //second argument is the event pointer
+  cusan_Device = 0,  // second argument is a nullptr
+  cusan_Stream = 1,  // second argument is the stream pointer
+  cusan_Event  = 2,  // second argument is the event pointer
 } cusan_sync_type;
 
 void cusan_sync_callback(cusan_sync_type /*type*/, const void* /*event or stream*/, unsigned int /*return_value*/);

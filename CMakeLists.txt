@@ -2,9 +2,9 @@ cmake_minimum_required(VERSION 3.20)
 
 project(
     cusan
-    VERSION 0.1.0
+    VERSION 0.3.0
     DESCRIPTION "A data race detector for CUDA based on ThreadSanitizer"
-    HOMEPAGE_URL "https://github.com/ahueck/cusan"
+    HOMEPAGE_URL "https://github.com/tudasc/cusan"
     LANGUAGES CXX C
 )
 
