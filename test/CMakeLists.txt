@@ -37,6 +37,7 @@ function(configure_cusan_lit_site_cfg input output)
   pythonize_bool(${CUSAN_TEST_WORKAROUNDS} CUSAN_TEST_WORKAROUND)
   pythonize_bool(${CUSAN_TYPEART} CUSAN_HAS_TYPEART)
   pythonize_bool(${MPI_FOUND} CUSAN_HAS_MPI)
+  pythonize_bool(${CUSAN_DEVICE_SYNC_CALLBACKS} CUSAN_HAS_SYNC_CALLBACKS)
 
   cusan_target_generate_file(${input} ${output})
 endfunction()

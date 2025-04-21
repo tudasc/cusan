@@ -779,6 +779,7 @@ void _cusan_memcpy(void* target, const void* from, size_t count, cusan_memcpy_ki
 }
 
 void cusan_sync_callback(cusan_sync_type /*type*/, const void* /*event_or_stream*/, unsigned int /*return_value*/) {
+  LOG_TRACE("[cusan]Callback");
   // switch (type) {
   //   case cusan_Device:
   //     printf("Device sync return value %i\n", return_value);
