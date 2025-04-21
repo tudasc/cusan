@@ -1,8 +1,7 @@
 // clang-format off
+// RUN: %rm-file %t.yaml 
 
-// RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
-
-// clang-format on
+// RUN: %wrapper-cc %clang-pass-only-args --cusan-kernel-data=%t.yaml -x cuda --cuda-gpu-arch=sm_72 %s 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 
 // CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaEventCreate
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_event
@@ -13,7 +12,7 @@
 // CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaEventRecord
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_event_record
 
-#include "../support/gpu_mpi.h"
+// clang-format on
 
 #include <unistd.h>
 
@@ -25,10 +24,6 @@ __global__ void kernel(int* arr, const int N) {  // CHECK-DAG: [[FILENAME]]:[[@L
 }
 
 int main(int argc, char* argv[]) {
-  if (!has_gpu_aware_mpi()) {
-    printf("This example is designed for CUDA-aware MPI. Exiting.\n");
-    return 1;
-  }
   cudaEvent_t first_finished_event;
   cudaEventCreate(&first_finished_event);
   cudaStream_t stream1;

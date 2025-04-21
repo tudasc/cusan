@@ -1,7 +1,6 @@
 // clang-format off
-
-// RUN: %apply %s -strip-debug --cusan-kernel-data=%t.yaml --show_host_ir -x cuda --cuda-gpu-arch=sm_72 2>&1 | %filecheck %s -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
-
+// RUN: %rm-file %t.yaml 
+// RUN: %wrapper-mpicc %clang-pass-only-args --cusan-kernel-data=%t.yaml -x cuda --cuda-gpu-arch=sm_72 %s 2>&1 | %filecheck %s -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
 
 // CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamCreate
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_create_stream
@@ -15,6 +14,8 @@
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_memcpy_async({{i8\*|ptr}} {{.*}}[[mcpyasy_target]], {{i8\*|ptr}} {{.*}}[[mcpyasy_from]],
 // CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaStreamSynchronize
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_stream
+
+// REQUIRES: mpi
 
 // clang-format on
 

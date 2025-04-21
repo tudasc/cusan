@@ -26,20 +26,25 @@ string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}"
 )
 
 find_package(CUDAToolkit REQUIRED)
-find_package(MPI REQUIRED)
+find_package(MPI QUIET)
 
 option(CUSAN_TEST_CONFIGURE_IDE "Add targets for tests to help the IDE with completion etc." ON)
 mark_as_advanced(CUSAN_TEST_CONFIGURE_IDE)
 option(CUSAN_CONFIG_DIR_IS_SHARE "Install to \"share/cmake/\" instead of \"lib/cmake/\"" OFF)
 mark_as_advanced(CUSAN_CONFIG_DIR_IS_SHARE)
 
-set(CUSAN_LOG_LEVEL_RT 3 CACHE STRING "Granularity of runtime logger. 3 is most verbose, 0 is least.")
+set(CUSAN_LOG_LEVEL_RT 0 CACHE STRING "Granularity of runtime logger. 3 is most verbose, 0 is least.")
 set(CUSAN_LOG_LEVEL_PASS 3  CACHE STRING "Granularity of transform pass logger. 3 is most verbose, 0 is least.")
 
 option(CUSAN_TYPEART "Use external typeart to track allocations" OFF)
 option(CUSAN_FIBERPOOL "Use external fiber pool to manage ThreadSanitizer fibers" OFF)
 option(CUSAN_SOFTCOUNTER "Print runtime counters" OFF)
 option(CUSAN_SYNC_DETAIL_LEVEL "Enable implicit sync analysis of memcpy/memset" ON)
+
+option(CUSAN_DEVICE_SYNC_CALLBACKS "Enable runtime callbacks after sync calls" OFF)
+
+option(CUSAN_TEST_WORKAROUNDS "Enable workarounds for MPI + TSan regarding runtime tests" ON)
+mark_as_advanced(CUSAN_TEST_WORKAROUNDS)
 
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")

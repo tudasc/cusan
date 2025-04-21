@@ -1,3 +1,9 @@
+// cusan library
+// Copyright (c) 2023-2025 cusan authors
+// Distributed under the BSD 3-Clause License license.
+// (See accompanying file LICENSE)
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "AnalysisTransform.h"
 
 #include "support/Logger.h"
@@ -56,29 +62,41 @@ llvm::SmallVector<KernelArgInfo, 4> CudaKernelInvokeCollector::extract_kernel_ar
 
   llvm::SmallVector<Value*, 4> real_args;
 
+  LOG_DEBUG("Kernel argument array: " << *void_kernel_arg_array);
+  auto process_store = [&](StoreInst* store) {
+    if (!(index < model.args.size())) {
+      LOG_FATAL("In: " << *store->getParent()->getParent());
+      LOG_FATAL("Out of bounds for model args: " << index << " vs. " << model.args.size());
+      assert(false && "Encountered out of bounds access");
+    }
+    if (auto* cast = dyn_cast<BitCastInst>(store->getValueOperand())) {
+      LOG_DEBUG("Found bcast " << *cast)
+      real_args.push_back(*cast->operand_values().begin());
+    } else {
+      LOG_DEBUG("Found store " << *store)
+      real_args.push_back(*store->operand_values().begin());
+    }
+    index++;
+  };
   for (auto* array_user : void_kernel_arg_array->users()) {
     if (auto* gep = dyn_cast<GetElementPtrInst>(array_user)) {
       for (auto* gep_user : gep->users()) {
         if (auto* store = dyn_cast<StoreInst>(gep_user)) {
-          if (!(index < model.args.size())) {
-            LOG_FATAL("In: " << *store->getParent()->getParent())
-            LOG_FATAL("Out of bounds for model args: " << index << " vs. " << model.args.size());
-            assert(false && "Encountered out of bounds access");
-          }
-          if (auto* cast = dyn_cast<BitCastInst>(store->getValueOperand())) {
-            real_args.push_back(*cast->operand_values().begin());
-          } else {
-            real_args.push_back(*store->operand_values().begin());
-          }
-          index++;
+          process_store(store);
         }
       }
+    }
+    if (auto* store = dyn_cast<StoreInst>(array_user)) {
+      process_store(store);
     }
   }
 
   llvm::SmallVector<KernelArgInfo, 4> result = model.args;
+  // if (!real_args.empty()) {
   for (auto& res : result) {
+    // Value* val = real_args[real_args.size() - 1 - res.arg_pos];
     Value* val = real_args[real_args.size() - 1 - res.arg_pos];
+    LOG_DEBUG("Real argument: " << *val)
     // because of ABI? clang might convert struct argument to a (byval)pointer
     // but the actual cuda argument is just a value. So we double check that it actually allocates a pointer
     bool real_ptr = false;
@@ -96,6 +114,7 @@ llvm::SmallVector<KernelArgInfo, 4> CudaKernelInvokeCollector::extract_kernel_ar
     }
     res.value = val;
   }
+  // }
   return result;
 }
 }  // namespace analysis
@@ -589,6 +608,28 @@ llvm::SmallVector<Value*> CudaMallocPitch::map_arguments(IRBuilder<>& irb, llvm:
   return {ptr, real_size};
 }
 
+// CudaSetDevice
+
+CudaSetDevice::CudaSetDevice(callback::FunctionDecl* decls) {
+  setup("cudaSetDevice", &decls->cusan_set_device.f);
+}
+llvm::SmallVector<Value*> CudaSetDevice::map_arguments(IRBuilder<>&, llvm::ArrayRef<Value*> args) {
+  // cudaSetDevice ( int  device )
+  assert(args.size() == 1);
+  return {args[0]};
+}
+
+// CudaCHooseDevice
+
+CudaChooseDevice::CudaChooseDevice(callback::FunctionDecl* decls) {
+  setup("cudaChooseDevice", &decls->cusan_choose_device.f);
+}
+llvm::SmallVector<Value*> CudaChooseDevice::map_arguments(IRBuilder<>&, llvm::ArrayRef<Value*> args) {
+  // cudaChooseDevice ( int* device, const cudaDeviceProp* prop )
+  assert(args.size() == 2);
+  return {args[0]};
+}
+
 // CudaStreamQuery
 
 CudaStreamQuery::CudaStreamQuery(callback::FunctionDecl* decls) {
@@ -618,6 +659,47 @@ llvm::SmallVector<Value*> CudaEventQuery::map_arguments(IRBuilder<>& irb, llvm::
 }
 llvm::SmallVector<Value*, 1> CudaEventQuery::map_return_value(IRBuilder<>& irb, Value* result) {
   (void)irb;
+  return {result};
+}
+
+CudaStreamSyncCallback::CudaStreamSyncCallback(callback::FunctionDecl* decls) {
+  setup("cudaStreamSynchronize", &decls->cusan_sync_callback.f);
+}
+llvm::SmallVector<Value*> CudaStreamSyncCallback::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  //( void* stream)
+  assert(args.size() == 1);
+  return {irb.getInt8(1), args[0]};
+}
+llvm::SmallVector<Value*, 1> CudaStreamSyncCallback::map_return_value(IRBuilder<>&, Value* result) {
+  return {result};
+}
+
+CudaEventSyncCallback::CudaEventSyncCallback(callback::FunctionDecl* decls) {
+  setup("cudaEventSynchronize", &decls->cusan_sync_callback.f);
+}
+llvm::SmallVector<Value*> CudaEventSyncCallback::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  //( void* event)
+  assert(args.size() == 1);
+  return {irb.getInt8(2), args[0]};
+}
+llvm::SmallVector<Value*, 1> CudaEventSyncCallback::map_return_value(IRBuilder<>&, Value* result) {
+  return {result};
+}
+
+CudaDeviceSyncCallback::CudaDeviceSyncCallback(callback::FunctionDecl* decls) {
+  setup("cudaDeviceSynchronize", &decls->cusan_sync_callback.f);
+}
+llvm::SmallVector<Value*> CudaDeviceSyncCallback::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  //( )
+  assert(args.size() == 0);
+#if LLVM_VERSION_MAJOR < 15
+  auto* ptr_type = PointerType::getUnqual(irb.getContext());
+#else
+  auto* ptr_type = irb.getPtrTy();
+#endif
+  return {irb.getInt8(0), ConstantPointerNull::get(ptr_type)};
+}
+llvm::SmallVector<Value*, 1> CudaDeviceSyncCallback::map_return_value(IRBuilder<>&, Value* result) {
   return {result};
 }
 

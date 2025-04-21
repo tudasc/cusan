@@ -1,5 +1,5 @@
 // cusan library
-// Copyright (c) 2023-2024 cusan authors
+// Copyright (c) 2023-2025 cusan authors
 // Distributed under the BSD 3-Clause License license.
 // (See accompanying file LICENSE)
 // SPDX-License-Identifier: BSD-3-Clause
@@ -107,9 +107,9 @@ class NoneRecorder {
   Statistics stats_r;
   CUSAN_CUDA_EVENT_LIST
 #include "TsanEvents.inc"
-  void inc_TsanMemoryReadCount(unsigned count) {
+  void inc_TsanMemoryReadCount(unsigned) {
   }
-  void inc_TsanMemoryWriteCount(unsigned count) {
+  void inc_TsanMemoryWriteCount(unsigned) {
   }
 };
 

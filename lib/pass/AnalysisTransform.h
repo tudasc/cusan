@@ -1,5 +1,5 @@
 // cusan library
-// Copyright (c) 2023-2024 cusan authors
+// Copyright (c) 2023-2025 cusan authors
 // Distributed under the BSD 3-Clause License license.
 // (See accompanying file LICENSE)
 // SPDX-License-Identifier: BSD-3-Clause
@@ -7,8 +7,8 @@
 #ifndef CUSAN_ANALYSISTRANSFORM_H
 #define CUSAN_ANALYSISTRANSFORM_H
 
+#include "../analysis/KernelAnalysis.h"
 #include "FunctionDecl.h"
-#include "analysis/KernelAnalysis.h"
 
 #include <llvm/Demangle/Demangle.h>
 #include <llvm/IR/Function.h>
@@ -212,6 +212,8 @@ BasicInstrumenterDecl(CudaMallocManaged);
 BasicInstrumenterDecl(CudaMalloc);
 BasicInstrumenterDecl(CudaFree);
 BasicInstrumenterDecl(CudaMallocPitch);
+BasicInstrumenterDecl(CudaSetDevice);
+BasicInstrumenterDecl(CudaChooseDevice);
 
 class CudaStreamQuery : public SimpleInstrumenter<CudaStreamQuery> {
  public:
@@ -223,6 +225,25 @@ class CudaStreamQuery : public SimpleInstrumenter<CudaStreamQuery> {
 class CudaEventQuery : public SimpleInstrumenter<CudaEventQuery> {
  public:
   CudaEventQuery(callback::FunctionDecl* decls);
+  static llvm::SmallVector<Value*> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args);
+  static llvm::SmallVector<Value*, 1> map_return_value(IRBuilder<>& irb, Value* result);
+};
+
+class CudaStreamSyncCallback : public SimpleInstrumenter<CudaStreamSyncCallback> {
+ public:
+  CudaStreamSyncCallback(callback::FunctionDecl* decls);
+  static llvm::SmallVector<Value*> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args);
+  static llvm::SmallVector<Value*, 1> map_return_value(IRBuilder<>& irb, Value* result);
+};
+class CudaEventSyncCallback : public SimpleInstrumenter<CudaEventSyncCallback> {
+ public:
+  CudaEventSyncCallback(callback::FunctionDecl* decls);
+  static llvm::SmallVector<Value*> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args);
+  static llvm::SmallVector<Value*, 1> map_return_value(IRBuilder<>& irb, Value* result);
+};
+class CudaDeviceSyncCallback : public SimpleInstrumenter<CudaDeviceSyncCallback> {
+ public:
+  CudaDeviceSyncCallback(callback::FunctionDecl* decls);
   static llvm::SmallVector<Value*> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args);
   static llvm::SmallVector<Value*, 1> map_return_value(IRBuilder<>& irb, Value* result);
 };

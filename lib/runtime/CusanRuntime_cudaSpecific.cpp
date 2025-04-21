@@ -1,5 +1,5 @@
 // cusan library
-// Copyright (c) 2023-2024 cusan authors
+// Copyright (c) 2023-2025 cusan authors
 // Distributed under the BSD 3-Clause License license.
 // (See accompanying file LICENSE)
 // SPDX-License-Identifier: BSD-3-Clause
@@ -10,7 +10,14 @@
 #include <cuda_runtime_api.h>
 
 namespace cusan::runtime {
-cusan_MemcpyKind infer_memcpy_direction(const void* target, const void* from) {
+
+DeviceID get_current_device_id() {
+  DeviceID res;
+  cudaGetDevice(&res);
+  return res;
+}
+
+cusan_memcpy_kind infer_memcpy_direction(const void* target, const void* from) {
   cudaDeviceProp prop;
   cudaGetDeviceProperties(&prop, 0);
   assert(prop.unifiedAddressing && "Can only use default direction for memcpy when Unified memory is supported.");

@@ -1,0 +1,150 @@
+#!/bin/bash
+#
+# SPDX-License-Identifier: BSD-3-Clause
+#
+
+function cusan_is_wrapper_disabled_fn() {
+  case "${CUSAN_WRAPPER}" in
+  off | OFF | 0 | false | FALSE)
+    return 1
+    ;;
+  esac
+  return 0
+}
+
+function cusan_global_init_fn() {
+    local -r cusan_use_rel_path=@CUSAN_RELOCATABLE@
+    if [ "$cusan_use_rel_path" == 0 ]; then
+      local -r cusan_bin_dir="@CUSAN_BINARY_DIR@"
+      local -r cusan_lib_dir="@CUSAN_RT_DIR@"
+      local -r cusan_include_dir="@CUSAN_INCLUDE_DIRS@"
+      local -r cusan_pass="@CUSAN_PASS_DIR@/$<TARGET_FILE_NAME:cusan::TransformPass>"
+    else
+      # shellcheck disable=SC2155
+      local -r cusan_bin_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+      # shellcheck disable=SC2155
+      local -r cusan_install_dir="$(dirname "${cusan_bin_dir}")"
+      local -r cusan_lib_dir="${cusan_install_dir}/@CMAKE_INSTALL_LIBDIR@"
+      local -r cusan_include_dir="-I${cusan_install_dir}/@CMAKE_INSTALL_INCLUDEDIR@/@PROJECT_NAME@"
+      local -r cusan_pass="${cusan_lib_dir}/$<TARGET_FILE_NAME:cusan::TransformPass>"
+    fi
+
+  readonly cusan_ldflags="-L${cusan_lib_dir}/ \
+                   -Wl,-rpath,${cusan_lib_dir}/ \
+                   -l$<TARGET_FILE_BASE_NAME:cusan::Runtime>"
+
+  readonly cusan_san_flags="@CUSAN_SAN_FLAG@"
+
+  readonly cusan_includes="${cusan_include_dir}"
+  readonly cusan_plugin="-fpass-plugin="${cusan_pass}""
+
+  readonly cusan_compiler="@CUSAN_COMPILER@"
+
+  cusan_to_llvm_more_flags=""
+}
+
+function cusan_global_cuda_init_fn() {
+  # TODO: use generator expr. w.r.t. CUDA::cudart
+  readonly cusan_cuda_ldflags="-L@CUDAToolkit_LIBRARY_DIR@/ -lcudart -lcudart_static -lcudadevrt"
+}
+
+function cusan_is_cusan_linking_fn() {
+  local arg=""
+  for arg in "$@"; do
+    case "$arg" in
+    -c | -S | -E | -emit-llvm)
+      return 0
+    ;;
+    esac
+  done
+  return 1
+}
+
+function cusan_parse_commands_fn() {
+  cusan_non_cuda_args=""
+  cusan_found_cuda=0
+  cusan_cuda_code_arch=""
+  cusan_cuda_compute_arch=""
+
+  while (("$#")); do
+    case "$1" in
+    *.cu)
+      cusan_found_cuda=1
+      cusan_non_cuda_args="$cusan_non_cuda_args $1"
+      shift 1
+      ;;
+    -x)
+      if [ "$2" == "cuda" ]; then
+        cusan_found_cuda=1
+      fi
+      cusan_non_cuda_args="$cusan_non_cuda_args $1 $2"
+      shift 2
+      ;;
+    --cuda-gpu-arch=*)
+      cusan_cuda_code_arch="${1##--cuda-gpu-arch=}"
+      cusan_cuda_compute_arch="compute${cusan_cuda_code_arch##sm}"
+      shift 1
+      ;;
+    -code=*)
+      cusan_cuda_code_arch="${1##-code=}"
+      shift 1
+      ;;
+    -arch=*)
+      cusan_cuda_compute_arch="${1##-arch=}"
+      shift 1
+      ;;
+    -gencode)
+      shift 1
+      ;;
+    arch=*)
+      cusan_cuda_compute_arch="${1%%,code=*}"
+      cusan_cuda_compute_arch="${cusan_cuda_compute_arch##arch=}"
+      cusan_cuda_code_arch="${1##*code=}"
+      shift 1
+      ;;
+    --cusan-kernel-data=*)
+      if [ "@CUSAN_NEW_PM_REQUIRED@" == 1 ]; then
+        export CUSAN_KERNEL_DATA_FILE="${1##--cusan-kernel-data=}"
+      else
+        cusan_non_cuda_args+=" $1"    
+      fi
+      shift
+    ;;
+    *) # preserve other arguments
+      cusan_non_cuda_args="$cusan_non_cuda_args $1"
+      shift
+      ;;
+    esac
+  done
+  # set other positional arguments in their proper place
+  set -- "cusan_non_cuda_args"
+}
+
+function cusan_main_driver_fn() {
+  cusan_global_init_fn
+  cusan_global_cuda_init_fn
+
+  cusan_is_wrapper_disabled_fn
+  readonly cusan_disabled=$?
+  if [ "$cusan_disabled" == 1 ]; then
+    # shellcheck disable=SC2068
+    $cusan_compiler $@
+    return 0
+  fi
+
+  cusan_is_cusan_linking_fn "$@"
+  local -r cusan_linking=$?
+  
+  cusan_parse_commands_fn "$@"
+
+  if [ "$cusan_found_cuda" == 1 ]; then
+    local cusan_cuda_flags="--cuda-gpu-arch=${cusan_cuda_code_arch}"
+  fi
+  
+  if [ "$cusan_linking" == 1 ]; then
+    cusan_cuda_flags+=" ${cusan_cuda_ldflags} ${cusan_ldflags}"
+  fi
+  $cusan_compiler ${cusan_plugin} ${cusan_includes} ${cusan_san_flags} ${cusan_cuda_flags} ${cusan_non_cuda_args}
+}
+
+cusan_main_driver_fn "$@"

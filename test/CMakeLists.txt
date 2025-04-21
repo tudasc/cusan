@@ -34,6 +34,11 @@ function(configure_cusan_lit_site_cfg input output)
     set(CUSAN_OPT_ARGS "-enable-new-pm=0")
   endif()
 
+  pythonize_bool(${CUSAN_TEST_WORKAROUNDS} CUSAN_TEST_WORKAROUND)
+  pythonize_bool(${CUSAN_TYPEART} CUSAN_HAS_TYPEART)
+  pythonize_bool(${MPI_FOUND} CUSAN_HAS_MPI)
+  pythonize_bool(${CUSAN_DEVICE_SYNC_CALLBACKS} CUSAN_HAS_SYNC_CALLBACKS)
+
   cusan_target_generate_file(${input} ${output})
 endfunction()
 
@@ -72,7 +77,7 @@ function(cusan_add_lit_target)
       set(TARGET_NAME check-cusan-${suite})
     endif()
 
-    if(NOT EXISTS ${SUITE_PATH} AND NOT ${suite} STREQUAL "staging")
+    if(NOT EXISTS ${SUITE_PATH} AND NOT ${suite} STREQUAL "staging" AND NOT ${suite} STREQUAL "multi_gpu")
       message(WARNING "Could not find suitable lit test target at ${SUITE_PATH}")
       continue()
     endif()
@@ -87,16 +92,32 @@ function(cusan_add_lit_target)
   endforeach()
 endfunction()
 
+
+if(NOT MPI_FOUND)
+  # mock target to make test generation work
+  add_library(cusan_mpi_interceptor_mock SHARED IMPORTED)
+  set_target_properties(
+    cusan_mpi_interceptor_mock
+    PROPERTIES
+    OUTPUT_NAME "CusanMPIInterceptorPlaceholder"
+    IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/lib/runtime"
+  )
+  set(_cusan_interceptor_target cusan_mpi_interceptor_mock)
+  add_library(cusan::MPI_Interceptor ALIAS cusan_mpi_interceptor_mock)
+endif()
+
 set(CUSAN_TEST_DEPENDS
   cusan::TransformPass
-  cusan::MPI_Interceptor
   cusan::Runtime
   cusan::Analysis
-  
 )
 
+if(FOUND_MPI)
+  list(APPEND CUSAN_TEST_DEPENDS cusan::MPI_Interceptor)
+endif()
+
 if(CUSAN_TYPEART)
-list(APPEND CUSAN_TEST_DEPENDS typeart::Runtime typeart::TransformPass)
+  list(APPEND CUSAN_TEST_DEPENDS typeart::Runtime typeart::TransformPass)
 endif()
 
 set(CUSAN_SUITES
@@ -105,12 +126,15 @@ set(CUSAN_SUITES
   pass
   kernel_analysis
   staging
+  multi_gpu
 )
 
 include(ProcessorCount)
 ProcessorCount(NUM_CPU)
 if(NUM_CPU EQUAL 0)
   set(NUM_CPU 1)
+elseif(NUM_CPU GREATER 8)
+  set(NUM_CPU 8)
 endif()
 
 set(CUSAN_SUITES_WORKERS
@@ -118,6 +142,7 @@ set(CUSAN_SUITES_WORKERS
   1
   ${NUM_CPU}
   ${NUM_CPU}
+  1
   1
 )
 

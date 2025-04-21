@@ -1,4 +1,12 @@
+// cusan library
+// Copyright (c) 2023-2025 cusan authors
+// Distributed under the BSD 3-Clause License license.
+// (See accompanying file LICENSE)
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "FunctionDecl.h"
+
+#include <cstdint>
 
 namespace cusan::callback {
 
@@ -124,6 +132,18 @@ void FunctionDecl::initialize(llvm::Module& module) {
   //  void* devPtr, size_t pitch, size_t width, size_t height
   ArgTypes arg_types_2d_memset = {void_ptr, size_t_ty, size_t_ty, size_t_ty};
   make_function(cusan_memset_2d, arg_types_2d_memset);
+
+  //  int device
+  ArgTypes arg_types_set_device = {Type::getInt32Ty(c)};
+  make_function(cusan_set_device, arg_types_set_device);
+
+  //  void* device
+  ArgTypes arg_types_choose_device = {Type::getInt32Ty(c)->getPointerTo()};
+  make_function(cusan_choose_device, arg_types_choose_device);
+
+  //  u8 evenType, u32 returnValue
+  ArgTypes arg_types_sync_callback = {Type::getInt8Ty(c), void_ptr, Type::getInt32Ty(c)};
+  make_function(cusan_sync_callback, arg_types_sync_callback);
 }
 
 }  // namespace cusan::callback
