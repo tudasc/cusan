@@ -134,7 +134,7 @@ $> cmake --build build --target install --parallel
 #### Build options
 
 | Option                        | Default | Description                                                                                                        |
-|-------------------------------|--:-:----|--------------------------------------------------------------------------------------------------------------------|
+|-------------------------------|:-------:|--------------------------------------------------------------------------------------------------------------------|
 | `CUSAN_TYPEART`               | `OFF`   | Use TypeART library to track memory allocations.                                                                   |
 | `CUSAN_FIBERPOOL`             | `OFF`   | Use external library to efficiently manage fibers creation .                                                       |
 | `CUSAN_SOFTCOUNTER`           | `OFF`   | Runtime stats for calls to ThreadSanitizer and CUDA-callbacks. Only use for stats collection, not race detection.  |
