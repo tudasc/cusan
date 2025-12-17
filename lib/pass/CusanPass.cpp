@@ -181,6 +181,15 @@ bool CusanPass::runOnFunc(llvm::Function& function) {
   modified |= transform::StreamCreateWithPriorityInstrumenter(&cusan_decls_).instrument(function);
   modified |= transform::CudaMallocPitch(&cusan_decls_).instrument(function);
 
+  modified |= transform::HipMemcpyInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::HipMalloc(&cusan_decls_).instrument(function);
+  modified |= transform::HipFree(&cusan_decls_).instrument(function);
+  modified |= transform::HipStreamSyncInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::HipMemsetInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::HipStreamCreateWithFlagsInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::HipStreamCreateInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::HipMallocManaged(&cusan_decls_).instrument(function);
+
   auto data_for_host = host::kernel_model_for_stub(&function, this->kernel_models_);
   if (data_for_host) {
     LOG_FATAL("Found kernel data for " << util::try_demangle_fully(function) << ": "

@@ -212,6 +212,7 @@ BasicInstrumenterDecl(CudaMallocManaged);
 BasicInstrumenterDecl(CudaMalloc);
 BasicInstrumenterDecl(CudaFree);
 
+
 class CudaMallocPitch : public SimpleInstrumenter<CudaMallocPitch> {
  public:
   CudaMallocPitch(callback::FunctionDecl* decls) {
@@ -246,6 +247,17 @@ class CudaEventQuery : public SimpleInstrumenter<CudaEventQuery> {
   static llvm::SmallVector<Value*> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args);
   static llvm::SmallVector<Value*, 1> map_return_value(IRBuilder<>& irb, Value* result);
 };
+
+
+
+BasicInstrumenterDecl(HipMemcpyInstrumenter);
+BasicInstrumenterDecl(HipMalloc);
+BasicInstrumenterDecl(HipMallocManaged);
+BasicInstrumenterDecl(HipMemsetInstrumenter);
+BasicInstrumenterDecl(HipStreamSyncInstrumenter);
+BasicInstrumenterDecl(HipFree);
+BasicInstrumenterDecl(HipStreamCreateInstrumenter);
+BasicInstrumenterDecl(HipStreamCreateWithFlagsInstrumenter);
 
 }  // namespace transform
 }  // namespace cusan

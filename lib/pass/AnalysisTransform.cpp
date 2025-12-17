@@ -614,4 +614,112 @@ llvm::SmallVector<Value*, 1> CudaEventQuery::map_return_value(IRBuilder<>& irb, 
   return {result};
 }
 
+// ##### HIP ######
+//  HIPMemcpyInstrumenter
+
+HipMemcpyInstrumenter::HipMemcpyInstrumenter(callback::FunctionDecl* decls) {
+  setup("hipMemcpy", &decls->cusan_memcpy.f);
+}
+llvm::SmallVector<Value*> HipMemcpyInstrumenter::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  // void* dst, const void* src, size_t count, hipMemcpyKind kind
+  assert(args.size() == 4);
+  auto* dst_ptr = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
+  auto* src_ptr = irb.CreateBitOrPointerCast(args[1], get_void_ptr_type(irb));
+  auto* count   = args[2];
+  auto* kind    = args[3];
+  return {dst_ptr, src_ptr, count, kind};
+}
+
+// hipMalloc
+
+HipMalloc::HipMalloc(callback::FunctionDecl* decls) {
+  setup("hipMalloc", &decls->cusan_device_alloc.f);
+}
+llvm::SmallVector<Value*> HipMalloc::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  //( void* ptr, size_t size)
+  assert(args.size() == 2);
+  auto* ptr  = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
+  auto* size = args[1];
+  return {ptr, size};
+}
+
+// hipFree
+
+HipFree::HipFree(callback::FunctionDecl* decls) {
+  setup("hipFree", &decls->cusan_device_free.f);
+}
+llvm::SmallVector<Value*> HipFree::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  //( void* ptr)
+  assert(args.size() == 1);
+  auto* ptr = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
+  return {ptr};
+}
+
+
+// HipMallocManaged
+
+HipMallocManaged::HipMallocManaged(callback::FunctionDecl* decls) {
+  setup("hipMallocManaged", &decls->cusan_managed_alloc.f);
+}
+llvm::SmallVector<Value*> HipMallocManaged::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  //( void* ptr, size_t size, u32 flags)
+  assert(args.size() == 3);
+  auto* ptr   = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
+  auto* size  = args[1];
+  auto* flags = args[2];
+  return {ptr, size, flags};
+}
+
+// HipStreamCreateInstrumenter
+
+HipStreamCreateInstrumenter::HipStreamCreateInstrumenter(callback::FunctionDecl* decls) {
+  setup("hipStreamCreate", &decls->cusan_stream_create.f);
+}
+llvm::SmallVector<Value*> HipStreamCreateInstrumenter::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  assert(args.size() == 1);
+  auto* flags                  = llvm::ConstantInt::get(Type::getInt32Ty(irb.getContext()), 0, false);
+  auto* cu_stream_void_ptr_ptr = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
+  return {cu_stream_void_ptr_ptr, flags};
+}
+
+// HipStreamCreateWithFlagsInstrumenter
+
+HipStreamCreateWithFlagsInstrumenter::HipStreamCreateWithFlagsInstrumenter(callback::FunctionDecl* decls) {
+  setup("hipStreamCreateWithFlags", &decls->cusan_stream_create.f);
+}
+
+llvm::SmallVector<Value*> HipStreamCreateWithFlagsInstrumenter::map_arguments(IRBuilder<>& irb,
+                                                                           llvm::ArrayRef<Value*> args) {
+  assert(args.size() == 2);
+  auto* cu_stream_void_ptr_ptr = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
+  auto* flags                  = args[1];
+  return {cu_stream_void_ptr_ptr, flags};
+}
+
+// HipMemsetInstrumenter
+
+HipMemsetInstrumenter::HipMemsetInstrumenter(callback::FunctionDecl* decls) {
+  setup("hipMemset", &decls->cusan_memset.f);
+}
+llvm::SmallVector<Value*> HipMemsetInstrumenter::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  //( void* devPtr, int  value, size_t count,)
+  assert(args.size() == 3);
+  auto* dst_ptr = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
+  // auto* value   = args[1];
+  auto* count = args[2];
+  return {dst_ptr, count};
+}
+
+// HipStreamSyncInstrumenter
+
+HipStreamSyncInstrumenter::HipStreamSyncInstrumenter(callback::FunctionDecl* decls) {
+  setup("hipStreamSynchronize", &decls->cusan_sync_stream.f);
+}
+llvm::SmallVector<Value*> HipStreamSyncInstrumenter::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  assert(args.size() == 1);
+  Value* cu_stream_void_ptr = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
+  return {cu_stream_void_ptr};
+}
+
+
 }  // namespace cusan::transform
