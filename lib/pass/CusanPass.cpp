@@ -11,6 +11,7 @@
 #include "CommandLine.h"
 #include "FunctionDecl.h"
 #include "support/CudaUtil.h"
+#include "support/HipUtil.h"
 #include "support/Logger.h"
 #include "support/Util.h"
 
@@ -74,7 +75,9 @@ bool LegacyCusanPass::runOnModule(llvm::Module& module) {
 
 llvm::PreservedAnalyses CusanPass::run(llvm::Module& module, llvm::ModuleAnalysisManager& AM) {
   auto promote_pass_preserved = llvm::PreservedAnalyses::all();
-  const bool is_device_code   = llvm::StringRef(module.getTargetTriple()).contains("nvptx64-nvidia-cuda");
+  auto target_triple_name     = llvm::StringRef(module.getTargetTriple());
+  const bool is_device_code =
+      target_triple_name.contains("nvptx64-nvidia-cuda") || target_triple_name.contains("amdgcn-amd-amdhsa");
   if (is_device_code) {
     ModulePassManager module_pass_manager;
     module_pass_manager.addPass(createModuleToFunctionPassAdaptor(llvm::PromotePass()));
@@ -116,7 +119,7 @@ bool CusanPass::runOnModule(llvm::Module& module) {
   const auto result = io::load(this->kernel_models_, kernel_models_file);
 
   const auto changed      = llvm::count_if(module.functions(), [&](auto& func) {
-                         if (cuda::is_kernel(&func)) {
+                         if (cuda::is_kernel(&func) || hip::is_kernel(&func)) {
                            return runOnKernelFunc(func);
                          }
                          return runOnFunc(func);

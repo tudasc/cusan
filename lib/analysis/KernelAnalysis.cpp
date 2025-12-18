@@ -7,6 +7,7 @@
 #include "KernelAnalysis.h"
 
 #include "support/CudaUtil.h"
+#include "support/HipUtil.h"
 #include "support/Logger.h"
 #include "support/Util.h"
 
@@ -309,7 +310,7 @@ std::optional<KernelModel> info_with_attributor(llvm::Function* kernel) {
 }
 
 std::optional<KernelModel> analyze_device_kernel(llvm::Function* f) {
-  if (!cuda::is_kernel(f)) {
+  if (!cuda::is_kernel(f) && !hip::is_kernel(f)) {
     assert(f != nullptr && "Function should not be null here!");
     LOG_DEBUG("Function is not a kernel " << f->getName())
     return {};
