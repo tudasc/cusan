@@ -95,7 +95,6 @@ set(CUSAN_TEST_DEPENDS
   cusan::MPI_Interceptor
   cusan::Runtime
   cusan::Analysis
-  
 )
 
 if(CUSAN_TYPEART)
@@ -104,6 +103,7 @@ endif()
 
 set(CUSAN_SUITES
   all
+  hip_runtime
   runtime
   pass
   kernel_analysis
@@ -119,6 +119,7 @@ elseif(NUM_CPU GREATER 8)
 endif()
 
 set(CUSAN_SUITES_WORKERS
+  1
   1
   1
   ${NUM_CPU}

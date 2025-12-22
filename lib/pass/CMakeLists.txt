@@ -1,6 +1,7 @@
 set(PASS_SOURCES
   CusanPass.cpp
   AnalysisTransform.cpp
+  AnalysisTransformHIP.cpp
   FunctionDecl.cpp
 )
 

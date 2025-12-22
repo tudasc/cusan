@@ -216,6 +216,12 @@ configure_cusan_script(
 )
 
 configure_cusan_script(
+  ${CUSAN_WRAPPER} cusan-hipcc${CMAKE_DEBUG_POSTFIX}
+  INSTALL_MODE ON
+  COMPILER ${CUSAN_HIPCC_EXEC}
+)
+
+configure_cusan_script(
   ${CUSAN_WRAPPER} cusan-clang-test
   COMPILER ${CUSAN_CLANG_EXEC}
 )
@@ -224,10 +230,16 @@ configure_cusan_script(
   COMPILER ${CUSAN_CLANGCXX_EXEC}
 )
 
+configure_cusan_script(
+  ${CUSAN_WRAPPER} cusan-hipcc-test
+  COMPILER ${CUSAN_HIPCC_EXEC}
+)
+
 install(
   PROGRAMS
     ${CMAKE_CURRENT_BINARY_DIR}/cusan-clang++${CMAKE_DEBUG_POSTFIX}
     ${CMAKE_CURRENT_BINARY_DIR}/cusan-clang${CMAKE_DEBUG_POSTFIX}
+    ${CMAKE_CURRENT_BINARY_DIR}/cusan-hipcc${CMAKE_DEBUG_POSTFIX}
     $<$<BOOL:${MPI_C_FOUND}>:${CMAKE_CURRENT_BINARY_DIR}/cusan-mpicc${CMAKE_DEBUG_POSTFIX}>
     $<$<BOOL:${MPI_CXX_FOUND}>:${CMAKE_CURRENT_BINARY_DIR}/cusan-mpic++${CMAKE_DEBUG_POSTFIX}>
   DESTINATION ${CMAKE_INSTALL_BINDIR}

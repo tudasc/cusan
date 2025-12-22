@@ -9,6 +9,8 @@
 
 #include "../analysis/KernelAnalysis.h"
 #include "FunctionDecl.h"
+#include "support/Util.h"
+#include "support/Logger.h"
 
 #include <llvm/Demangle/Demangle.h>
 #include <llvm/IR/Function.h>
@@ -18,6 +20,13 @@
 
 using namespace llvm;
 namespace cusan {
+inline auto get_void_ptr_type(IRBuilder<>& irb) {
+#if LLVM_VERSION_MAJOR >= 15
+  return irb.getPtrTy();
+#else
+  return irb.getInt8PtrTy();
+#endif
+}
 
 namespace analysis {
 
@@ -25,13 +34,31 @@ using KernelArgInfo = cusan::FunctionArg;
 
 namespace helper {
 template <typename... Strings>
-bool ends_with_any_of(const std::string& name, Strings&&... searching_names) {
+inline bool ends_with_any_of(const std::string& name, Strings&&... searching_names) {
   const llvm::StringRef name_ref{name};
 #if LLVM_VERSION_MAJOR > 15
   return (name_ref.ends_with(searching_names) || ...);
 #else
   return (name_ref.endswith(searching_names) || ...);
 #endif
+}
+
+inline bool does_name_match(const std::string& model_kernel_name, llvm::CallBase& cb) {
+  assert(cb.getFunction() != nullptr && "Callbase requires function.");
+  const auto stub_name      = util::try_demangle_fully(*cb.getFunction());
+  const auto searching_name = util::try_demangle_fully(model_kernel_name);
+
+  StringRef searching_without_type{searching_name};
+  if (StringRef{stub_name}.contains("lambda")) {
+    LOG_DEBUG("Detected lambda function in stub name " << stub_name);
+    // if we got a lambda it has a return type included that we want to shave off
+    const auto first_space = searching_name.find(' ');
+    searching_without_type = llvm::StringRef(searching_name).substr(first_space + 1);
+  }
+
+  LOG_DEBUG("Check stub \"" << stub_name << "\" ends with \"" << searching_name << "\" or \"" << searching_without_type
+                            << "\"");
+  return helper::ends_with_any_of(stub_name, searching_name, searching_without_type);
 }
 
 }  // namespace helper
@@ -53,14 +80,32 @@ struct CudaKernelInvokeCollector {
   llvm::SmallVector<KernelArgInfo, 4> extract_kernel_args_for(llvm::Value* void_kernel_arg_array) const;
 };
 
+
+struct HipKernelInvokeCollector {
+  KernelModel& model;
+  struct KernelInvokeData {
+    llvm::SmallVector<KernelArgInfo, 4> args;
+    llvm::Value* void_arg_array{nullptr};
+    llvm::Value* hip_stream{nullptr};
+  };
+  using Data = KernelInvokeData;
+
+  HipKernelInvokeCollector(KernelModel& current_stub_model) : model(current_stub_model) {
+  }
+
+  std::optional<KernelInvokeData> match(llvm::CallBase& cb, Function& callee) const;
+
+  llvm::SmallVector<KernelArgInfo, 4> extract_kernel_args_for(llvm::Value* void_kernel_arg_array) const;
+};
+
 }  // namespace analysis
 
 namespace transform {
 
-struct KernelInvokeTransformer {
+struct CudaKernelInvokeTransformer {
   callback::FunctionDecl* decls_;
 
-  KernelInvokeTransformer(callback::FunctionDecl* decls) : decls_(decls) {
+  CudaKernelInvokeTransformer(callback::FunctionDecl* decls) : decls_(decls) {
   }
 
   bool transform(const analysis::CudaKernelInvokeCollector::Data& data, IRBuilder<>& irb) const;
@@ -71,6 +116,25 @@ struct KernelInvokeTransformer {
   static llvm::Value* get_cu_stream_ptr(const analysis::CudaKernelInvokeCollector::Data& data, IRBuilder<>& irb);
   bool generate_compound_cb(const analysis::CudaKernelInvokeCollector::Data& data, IRBuilder<>& irb) const;
 };
+
+
+
+struct HipKernelInvokeTransformer {
+  callback::FunctionDecl* decls_;
+
+  HipKernelInvokeTransformer(callback::FunctionDecl* decls) : decls_(decls) {
+  }
+
+  bool transform(const analysis::HipKernelInvokeCollector::Data& data, IRBuilder<>& irb) const;
+
+ private:
+  static short access_cast(AccessState access, bool is_ptr);
+
+  static llvm::Value* get_hip_stream_ptr(const analysis::HipKernelInvokeCollector::Data& data, IRBuilder<>& irb);
+  bool generate_compound_cb(const analysis::HipKernelInvokeCollector::Data& data, IRBuilder<>& irb) const;
+};
+
+
 
 template <class Collector, class Transformer>
 class CallInstrumenter {

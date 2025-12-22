@@ -198,7 +198,10 @@ bool CusanPass::runOnFunc(llvm::Function& function) {
     LOG_FATAL("Found kernel data for " << util::try_demangle_fully(function) << ": "
                                        << data_for_host.value().kernel_name)
     modified |= transform::CallInstrumenter(analysis::CudaKernelInvokeCollector{data_for_host.value()},
-                                            transform::KernelInvokeTransformer{&cusan_decls_}, function)
+                                            transform::CudaKernelInvokeTransformer{&cusan_decls_}, function)
+                    .instrument();
+    modified |= transform::CallInstrumenter(analysis::HipKernelInvokeCollector{data_for_host.value()},
+                                            transform::HipKernelInvokeTransformer{&cusan_decls_}, function)
                     .instrument();
   }
   return modified;
