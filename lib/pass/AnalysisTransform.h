@@ -9,8 +9,8 @@
 
 #include "../analysis/KernelAnalysis.h"
 #include "FunctionDecl.h"
-#include "support/Util.h"
 #include "support/Logger.h"
+#include "support/Util.h"
 
 #include <llvm/Demangle/Demangle.h>
 #include <llvm/IR/Function.h>
@@ -80,7 +80,6 @@ struct CudaKernelInvokeCollector {
   llvm::SmallVector<KernelArgInfo, 4> extract_kernel_args_for(llvm::Value* void_kernel_arg_array) const;
 };
 
-
 struct HipKernelInvokeCollector {
   KernelModel& model;
   struct KernelInvokeData {
@@ -117,8 +116,6 @@ struct CudaKernelInvokeTransformer {
   bool generate_compound_cb(const analysis::CudaKernelInvokeCollector::Data& data, IRBuilder<>& irb) const;
 };
 
-
-
 struct HipKernelInvokeTransformer {
   callback::FunctionDecl* decls_;
 
@@ -133,8 +130,6 @@ struct HipKernelInvokeTransformer {
   static llvm::Value* get_hip_stream_ptr(const analysis::HipKernelInvokeCollector::Data& data, IRBuilder<>& irb);
   bool generate_compound_cb(const analysis::HipKernelInvokeCollector::Data& data, IRBuilder<>& irb) const;
 };
-
-
 
 template <class Collector, class Transformer>
 class CallInstrumenter {
@@ -276,7 +271,6 @@ BasicInstrumenterDecl(CudaMallocManaged);
 BasicInstrumenterDecl(CudaMalloc);
 BasicInstrumenterDecl(CudaFree);
 
-
 class CudaMallocPitch : public SimpleInstrumenter<CudaMallocPitch> {
  public:
   CudaMallocPitch(callback::FunctionDecl* decls) {
@@ -312,8 +306,8 @@ class CudaEventQuery : public SimpleInstrumenter<CudaEventQuery> {
   static llvm::SmallVector<Value*, 1> map_return_value(IRBuilder<>& irb, Value* result);
 };
 
-
-
+BasicInstrumenterDecl(HipDeviceSyncInstrumenter);
+BasicInstrumenterDecl(HipMemcpyAsyncInstrumenter);
 BasicInstrumenterDecl(HipMemcpyInstrumenter);
 BasicInstrumenterDecl(HipMalloc);
 BasicInstrumenterDecl(HipMallocManaged);
@@ -322,6 +316,41 @@ BasicInstrumenterDecl(HipStreamSyncInstrumenter);
 BasicInstrumenterDecl(HipFree);
 BasicInstrumenterDecl(HipStreamCreateInstrumenter);
 BasicInstrumenterDecl(HipStreamCreateWithFlagsInstrumenter);
+
+BasicInstrumenterDecl(HipEventCreateInstrumenter);
+BasicInstrumenterDecl(HipEventCreateWithFlagsInstrumenter);
+BasicInstrumenterDecl(HipEventRecordInstrumenter);
+BasicInstrumenterDecl(HipEventSyncInstrumenter);
+
+class HipEventQuery : public SimpleInstrumenter<HipEventQuery> {
+ public:
+  HipEventQuery(callback::FunctionDecl* decls);
+  static llvm::SmallVector<Value*> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args);
+  static llvm::SmallVector<Value*, 1> map_return_value(IRBuilder<>& irb, Value* result);
+};
+class HipStreamQuery : public SimpleInstrumenter<HipStreamQuery> {
+ public:
+  HipStreamQuery(callback::FunctionDecl* decls);
+  static llvm::SmallVector<Value*> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args);
+  static llvm::SmallVector<Value*, 1> map_return_value(IRBuilder<>& irb, Value* result);
+};
+
+// TODO
+
+// BasicInstrumenterDecl(EventRecordFlagsInstrumenter);
+// BasicInstrumenterDecl(CudaMemcpy2DInstrumenter);
+// BasicInstrumenterDecl(CudaMemcpy2DAsyncInstrumenter);
+// BasicInstrumenterDecl(CudaMemsetAsyncInstrumenter);
+// BasicInstrumenterDecl(CudaMemset2dAsyncInstrumenter);
+// BasicInstrumenterDecl(CudaMemset2dInstrumenter);
+// BasicInstrumenterDecl(CudaHostAlloc);
+// BasicInstrumenterDecl(CudaMallocHost);
+
+// BasicInstrumenterDecl(StreamCreateWithPriorityInstrumenter);
+// BasicInstrumenterDecl(StreamWaitEventInstrumenter);
+// BasicInstrumenterDecl(CudaHostRegister);
+// BasicInstrumenterDecl(CudaHostUnregister);
+// BasicInstrumenterDecl(CudaHostFree);
 
 }  // namespace transform
 }  // namespace cusan

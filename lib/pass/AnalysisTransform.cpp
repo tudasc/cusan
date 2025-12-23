@@ -1,10 +1,8 @@
 #include "AnalysisTransform.h"
 
-
 namespace cusan {
 
 namespace analysis {
-
 
 std::optional<CudaKernelInvokeCollector::KernelInvokeData> CudaKernelInvokeCollector::match(llvm::CallBase& cb,
                                                                                             Function& callee) const {
@@ -84,16 +82,13 @@ llvm::SmallVector<KernelArgInfo, 4> CudaKernelInvokeCollector::extract_kernel_ar
   return result;
 }
 
-
-
-
-
 }  // namespace analysis
 }  // namespace cusan
 
 namespace cusan::transform {
 
-bool CudaKernelInvokeTransformer::transform(const analysis::CudaKernelInvokeCollector::Data& data, IRBuilder<>& irb) const {
+bool CudaKernelInvokeTransformer::transform(const analysis::CudaKernelInvokeCollector::Data& data,
+                                            IRBuilder<>& irb) const {
   using namespace llvm;
   return generate_compound_cb(data, irb);
 }
@@ -108,7 +103,7 @@ short CudaKernelInvokeTransformer::access_cast(AccessState access, bool is_ptr) 
 }
 
 llvm::Value* CudaKernelInvokeTransformer::get_cu_stream_ptr(const analysis::CudaKernelInvokeCollector::Data& data,
-                                                        IRBuilder<>& irb) {
+                                                            IRBuilder<>& irb) {
   auto* cu_stream = data.cu_stream;
   assert(cu_stream != nullptr && "Require cuda stream!");
   auto* cu_stream_void_ptr = irb.CreateBitOrPointerCast(cu_stream, get_void_ptr_type(irb));
@@ -116,7 +111,7 @@ llvm::Value* CudaKernelInvokeTransformer::get_cu_stream_ptr(const analysis::Cuda
 }
 
 bool CudaKernelInvokeTransformer::generate_compound_cb(const analysis::CudaKernelInvokeCollector::Data& data,
-                                                   IRBuilder<>& irb) const {
+                                                       IRBuilder<>& irb) const {
   const bool should_transform =
       llvm::count_if(data.args, [&](const auto& elem) {
         return llvm::count_if(elem.subargs, [&](const auto& sub_elem) { return sub_elem.is_pointer; }) > 0;
@@ -590,7 +585,5 @@ llvm::SmallVector<Value*, 1> CudaEventQuery::map_return_value(IRBuilder<>& irb, 
   (void)irb;
   return {result};
 }
-
-
 
 }  // namespace cusan::transform
