@@ -38,6 +38,7 @@ set(CUSAN_LOG_LEVEL_PASS 3  CACHE STRING "Granularity of transform pass logger. 
 
 option(CUSAN_TYPEART "Use external typeart to track allocations" OFF)
 option(CUSAN_FIBERPOOL "Use external fiber pool to manage ThreadSanitizer fibers" OFF)
+option(CUSAN_HIP "Enable hip support" OFF)
 option(CUSAN_SOFTCOUNTER "Print runtime counters" OFF)
 option(CUSAN_SYNC_DETAIL_LEVEL "Enable implicit sync analysis of memcpy/memset" ON)
 
@@ -71,6 +72,7 @@ include(modules/cusan-target-util)
 
 cusan_find_llvm_progs(CUSAN_CLANG_EXEC "clang-${LLVM_VERSION_MAJOR};clang" DEFAULT_EXE "clang")
 cusan_find_llvm_progs(CUSAN_CLANGCXX_EXEC "clang++-${LLVM_VERSION_MAJOR};clang++" DEFAULT_EXE "clang++")
+cusan_find_llvm_progs(CUSAN_HIPCC_EXEC "hipcc-${LLVM_VERSION_MAJOR};hipcc" DEFAULT_EXE "hipcc")
 cusan_find_llvm_progs(CUSAN_LLC_EXEC "llc-${LLVM_VERSION_MAJOR};llc" DEFAULT_EXE "llc")
 cusan_find_llvm_progs(CUSAN_OPT_EXEC "opt-${LLVM_VERSION_MAJOR};opt" DEFAULT_EXE "opt")
 

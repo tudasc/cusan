@@ -7,8 +7,10 @@
 // clang-format on
 
 // CHECK-DAG: data race
+// CHECK-DAG: [Error] sync
 
 // CHECK-SYNC-NOT: data race
+// CHECK-SYNC-NOT: [Error] sync
 
 #include <stdio.h>
 
@@ -21,7 +23,7 @@ struct BufferStorage {
 __global__ void kernel(BufferStorage storage, const int N, bool write_second) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid < N) {
-    storage.buff1[tid] = tid * 32;
+    storage.buff1[tid] = (tid + 1) * 32;
     if (write_second) {
       storage.buff2[0][tid] = tid * 32;
     }

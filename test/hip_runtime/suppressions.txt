@@ -1,14 +1,15 @@
 called_from_lib:libmpi_cxx*
 called_from_lib:libmpi.so*
-called_from_lib:libcuda.so*
+called_from_lib:libhip.so*
 called_from_lib:libtypeartRuntime.so*
 called_from_lib:libamdhip64.so*
+called_from_lib:libhsa-runtime64.so*
 
 # Probably not required, from previous experiments
 #called_from_lib:libucx*
 called_from_lib:libucp*
 called_from_lib:libucs*
-#called_from_lib:libucm_cuda.so*
+#called_from_lib:libucm_hip.so*
 called_from_lib:libucm.so*
 called_from_lib:libuct_ib.so.0
 called_from_lib:libuct.so.0

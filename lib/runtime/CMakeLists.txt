@@ -16,6 +16,7 @@ target_compile_definitions(
   PRIVATE CUSAN_LOG_LEVEL=${CUSAN_LOG_LEVEL_RT}
   LLVM_VERSION_MAJOR=${LLVM_VERSION_MAJOR}
    $<$<BOOL:${CUSAN_FIBERPOOL}>:CUSAN_FIBERPOOL=1>
+   $<$<BOOL:${CUSAN_HIP}>:CUSAN_HIP=1>
    $<$<BOOL:${CUSAN_TYPEART}>:CUSAN_TYPEART=1>
    $<$<BOOL:${CUSAN_SOFTCOUNTER}>:CUSAN_SOFTCOUNTER>
 )
@@ -63,6 +64,11 @@ export(
 )
 
 add_library(cusan_Runtime SHARED CusanRuntime.cpp CusanRuntime_cudaSpecific.cpp)
+
+if(CUSAN_HIP)
+  target_sources(cusan_Runtime PRIVATE CusanRuntime_hipSpecific.cpp)
+endif()
+
 set_target_properties(
   cusan_Runtime
   PROPERTIES
@@ -109,6 +115,7 @@ target_compile_definitions(
    LLVM_VERSION_MAJOR=${LLVM_VERSION_MAJOR}
    $<$<BOOL:${CUSAN_SYNC_DETAIL_LEVEL}>:CUSAN_SYNC_DETAIL_LEVEL=1>
    $<$<BOOL:${CUSAN_FIBERPOOL}>:CUSAN_FIBERPOOL=1>
+   $<$<BOOL:${CUSAN_HIP}>:CUSAN_HIP=1>
    $<$<BOOL:${CUSAN_TYPEART}>:CUSAN_TYPEART=1>
    $<$<BOOL:${CUSAN_SOFTCOUNTER}>:CUSAN_SOFTCOUNTER>
 )

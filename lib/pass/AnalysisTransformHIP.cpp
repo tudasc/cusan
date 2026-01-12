@@ -62,7 +62,7 @@ llvm::SmallVector<KernelArgInfo, 4> HipKernelInvokeCollector::extract_kernel_arg
     Value* val = real_args[real_args.size() - 1 - res.arg_pos];
     LOG_DEBUG("Real argument: " << *val)
     // because of ABI? clang might convert struct argument to a (byval)pointer
-    // but the actual hipda argument is just a value. So we double check that it actually allocates a pointer
+    // but the actual hip argument is just a value. So we double check that it actually allocates a pointer
     bool real_ptr = false;
     if (auto* as_alloca = dyn_cast<AllocaInst>(val)) {
       real_ptr = res.is_pointer && as_alloca->getAllocatedType()->isPointerTy();
@@ -137,9 +137,9 @@ bool HipKernelInvokeTransformer::generate_compound_cb(const analysis::HipKernelI
 
   size_t arg_array_index = 0;
   for (const auto& arg : data.args) {
-    LOG_DEBUG("Handling Arg: " << arg)
+    LOG_TRACE("Handling Arg: " << arg)
     for (const auto& sub_arg : arg.subargs) {
-      LOG_DEBUG("   subarg: " << sub_arg)
+      LOG_TRACE("   subarg: " << sub_arg)
       const auto access = access_cast(sub_arg.state, sub_arg.is_pointer);
       Value* idx        = ConstantInt::get(i32_ty, arg_array_index);
       Value* acc        = ConstantInt::get(i16_ty, access);
@@ -172,8 +172,8 @@ bool HipKernelInvokeTransformer::generate_compound_cb(const analysis::HipKernelI
         auto* voided_ptr    = irb.CreatePointerCast(value_ptr, void_ptr_ty);
         auto* gep_val_array = irb.CreateGEP(void_ptr_ty, arg_value_array, idx);
         irb.CreateStore(voided_ptr, gep_val_array);
-        arg_array_index += 1;
       }
+      arg_array_index += 1;
     }
   }
 
@@ -210,7 +210,7 @@ llvm::SmallVector<Value*> HipMemcpyInstrumenter::map_arguments(IRBuilder<>& irb,
   auto* src_ptr = irb.CreateBitOrPointerCast(args[1], get_void_ptr_type(irb));
   auto* count   = args[2];
   auto* kind    = args[3];
-  return {dst_ptr, src_ptr, count, kind};
+  return {dst_ptr, src_ptr, count, kind, irb.getInt8(0)};
 }
 
 // hipMalloc
@@ -238,7 +238,7 @@ llvm::SmallVector<Value*> HipFree::map_arguments(IRBuilder<>& irb, llvm::ArrayRe
   return {ptr};
 }
 
-// HipMallocManaged
+// hipMallocManaged
 
 HipMallocManaged::HipMallocManaged(callback::FunctionDecl* decls) {
   setup("hipMallocManaged", &decls->cusan_managed_alloc.f);

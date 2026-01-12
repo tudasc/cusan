@@ -4,7 +4,6 @@
 
 // RUN: %wrapper-hip -DCUSAN_SYNC %clang_args -x hip %s -o %cusan_test_dir/%basename_t-sync.exe
 // RUN: %tsan-options %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
-
 // clang-format on
 
 // CHECK-DAG: data race
@@ -18,7 +17,6 @@
 
 __global__ void write_kernel_delay(int* arr, const int N, const unsigned int delay) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
-
   if (tid < N) {
     for (unsigned int x = 0; x < delay; x++) {
       arr[tid] += x * arr[tid];
@@ -37,7 +35,7 @@ int main() {
   int* d_data2;
   hipStream_t stream1;
   hipStream_t stream2;
-  hipStreamCreate(&stream1);
+  hipStreamCreateWithFlags(&stream1, hipStreamNonBlocking);
   hipStreamCreate(&stream2);
 
   hipMallocManaged(&managed_data, size * sizeof(int));
@@ -47,14 +45,16 @@ int main() {
   hipMemset(managed_data2, 0, size * sizeof(int));
 
   write_kernel_delay<<<blocksPerGrid, threadsPerBlock, 0, stream1>>>(managed_data, size, 545912);
-#ifdef CUSAN_SYNC
   hipMemset(fake_data, 0, 4);
+#ifdef CUSAN_SYNC
+  hipStreamSynchronize(stream1);
 #endif
   write_kernel_delay<<<blocksPerGrid, threadsPerBlock, 0, stream2>>>(managed_data2, size, 1);
   hipStreamSynchronize(stream2);
   for (int i = 0; i < size; i++) {
-    if (managed_data[i] == 0) {
-      printf("[Error] sync %i\n", managed_data[i]);
+    const int data_i = managed_data[i];
+    if (data_i == 0) {
+      printf("[Error] sync\n");
       break;
     }
   }

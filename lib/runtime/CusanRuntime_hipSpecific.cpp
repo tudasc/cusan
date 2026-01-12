@@ -1,0 +1,41 @@
+// cusan library
+// Copyright (c) 2023-2024 cusan authors
+// Distributed under the BSD 3-Clause License license.
+// (See accompanying file LICENSE)
+// SPDX-License-Identifier: BSD-3-Clause
+
+#include "CusanRuntime.h"
+
+#include <cassert>
+#define __HIP_PLATFORM_AMD__
+#include <hip/hip_runtime.h>
+
+namespace cusan::runtime {
+cusan_MemcpyKind hip_infer_memcpy_direction(const void* target, const void* from) {
+  hipDeviceProp_t prop;
+  hipGetDeviceProperties(&prop, 0);
+  assert(prop.unifiedAddressing && "Can only use default direction for memcpy when Unified memory is supported.");
+
+  hipPointerAttribute_t target_attribs;
+  hipPointerGetAttributes(&target_attribs, target);
+  hipPointerAttribute_t from_attribs;
+  hipPointerGetAttributes(&from_attribs, target);
+  bool targetIsHostMem = target_attribs.type == hipMemoryType::hipMemoryTypeUnregistered ||
+                         target_attribs.type == hipMemoryType::hipMemoryTypeHost;
+  bool fromIsHostMem = target_attribs.type == hipMemoryType::hipMemoryTypeUnregistered ||
+                       target_attribs.type == hipMemoryType::hipMemoryTypeHost;
+
+  if (!fromIsHostMem && !targetIsHostMem) {
+    return cusan_MemcpyDeviceToDevice;
+  }
+  if (!fromIsHostMem && targetIsHostMem) {
+    return cusan_MemcpyDeviceToHost;
+  }
+  if (fromIsHostMem && !targetIsHostMem) {
+    return cusan_MemcpyHostToDevice;
+  }
+  // if (fromIsHostMem && targetIsHostMem) {
+  return cusan_MemcpyHostToHost;
+  // }
+}
+}  // namespace cusan::runtime

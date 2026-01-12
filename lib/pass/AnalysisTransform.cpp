@@ -267,7 +267,7 @@ llvm::SmallVector<Value*> CudaMemcpyInstrumenter::map_arguments(IRBuilder<>& irb
   auto* src_ptr = irb.CreateBitOrPointerCast(args[1], get_void_ptr_type(irb));
   auto* count   = args[2];
   auto* kind    = args[3];
-  return {dst_ptr, src_ptr, count, kind};
+  return {dst_ptr, src_ptr, count, kind, irb.getInt8(1)};
 }
 
 //  CudaMemcpy2DInstrumenter
@@ -285,7 +285,7 @@ llvm::SmallVector<Value*> CudaMemcpy2DInstrumenter::map_arguments(IRBuilder<>& i
   auto* width   = args[4];
   auto* height  = args[5];
   auto* kind    = args[6];
-  return {dst_ptr, dpitch, src_ptr, spitch, width, height, kind};
+  return {dst_ptr, dpitch, src_ptr, spitch, width, height, kind, irb.getInt8(1)};
 }
 
 // CudaMemcpy2DAsyncInstrumenter

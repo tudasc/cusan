@@ -155,6 +155,7 @@ if(CUSAN_TYPEART)
 else()
   set(CUSAN_WRAPPER cusan-wrapperv2.in)
 endif()
+set(CUSAN_HIP_WRAPPER cusan-hip-wrapperv2.in)
 
 if(NOT CUSAN_TYPEART)
   add_library(typeart_runtime_mock SHARED IMPORTED)
@@ -216,7 +217,7 @@ configure_cusan_script(
 )
 
 configure_cusan_script(
-  ${CUSAN_WRAPPER} cusan-hipcc${CMAKE_DEBUG_POSTFIX}
+  ${CUSAN_HIP_WRAPPER} cusan-hipcc${CMAKE_DEBUG_POSTFIX}
   INSTALL_MODE ON
   COMPILER ${CUSAN_HIPCC_EXEC}
 )

@@ -18,9 +18,8 @@
 
 __global__ void write_kernel_delay(int* arr, const int N, const unsigned int delay) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
-
   if (tid < N) {
-    for (unsigned int x = 0; x < delay; x++) {
+            for (unsigned int x = 0; x < delay; x++) {
       arr[tid] += x * arr[tid];
     }
     arr[tid] = (tid + 1);
@@ -32,35 +31,30 @@ int main() {
   const int threadsPerBlock = size;
   const int blocksPerGrid   = (size + threadsPerBlock - 1) / threadsPerBlock;
   int* managed_data;
-  int* managed_data2;
-  int* fake_data;
-  int* d_data2;
   hipStream_t stream1;
-  hipStream_t stream2;
   hipStreamCreate(&stream1);
-  hipStreamCreate(&stream2);
+  hipEvent_t event1;
+  hipEventCreate(&event1);
 
   hipMallocManaged(&managed_data, size * sizeof(int));
-  hipMallocManaged(&managed_data2, size * sizeof(int));
-  hipMallocManaged(&fake_data, 4);
   hipMemset(managed_data, 0, size * sizeof(int));
-  hipMemset(managed_data2, 0, size * sizeof(int));
 
   write_kernel_delay<<<blocksPerGrid, threadsPerBlock, 0, stream1>>>(managed_data, size, 545912);
+  hipEventRecord(event1, stream1);
+
 #ifdef CUSAN_SYNC
-  hipMemset(fake_data, 0, 4);
+  while (hipEventQuery(event1) != hipSuccess) {
+  }
 #endif
-  write_kernel_delay<<<blocksPerGrid, threadsPerBlock, 0, stream2>>>(managed_data2, size, 1);
-  hipStreamSynchronize(stream2);
+
   for (int i = 0; i < size; i++) {
     if (managed_data[i] == 0) {
       printf("[Error] sync %i\n", managed_data[i]);
-      break;
+      // break;
     }
   }
 
-  hipFree(d_data2);
   hipFree(managed_data);
-
+  hipStreamDestroy(stream1);
   return 0;
 }

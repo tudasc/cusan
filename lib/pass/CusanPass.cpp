@@ -184,14 +184,25 @@ bool CusanPass::runOnFunc(llvm::Function& function) {
   modified |= transform::StreamCreateWithPriorityInstrumenter(&cusan_decls_).instrument(function);
   modified |= transform::CudaMallocPitch(&cusan_decls_).instrument(function);
 
+
+
+  modified |= transform::HipDeviceSyncInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::HipMemcpyAsyncInstrumenter(&cusan_decls_).instrument(function);
   modified |= transform::HipMemcpyInstrumenter(&cusan_decls_).instrument(function);
   modified |= transform::HipMalloc(&cusan_decls_).instrument(function);
-  modified |= transform::HipFree(&cusan_decls_).instrument(function);
-  modified |= transform::HipStreamSyncInstrumenter(&cusan_decls_).instrument(function);
-  modified |= transform::HipMemsetInstrumenter(&cusan_decls_).instrument(function);
-  modified |= transform::HipStreamCreateWithFlagsInstrumenter(&cusan_decls_).instrument(function);
-  modified |= transform::HipStreamCreateInstrumenter(&cusan_decls_).instrument(function);
   modified |= transform::HipMallocManaged(&cusan_decls_).instrument(function);
+  modified |= transform::HipMemsetInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::HipStreamSyncInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::HipFree(&cusan_decls_).instrument(function);
+  modified |= transform::HipStreamCreateInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::HipStreamCreateWithFlagsInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::HipEventCreateInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::HipEventCreateWithFlagsInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::HipEventRecordInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::HipEventSyncInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::HipEventQuery(&cusan_decls_).instrument(function);
+  modified |= transform::HipStreamQuery(&cusan_decls_).instrument(function);
+
 
   auto data_for_host = host::kernel_model_for_stub(&function, this->kernel_models_);
   if (data_for_host) {

@@ -270,7 +270,7 @@ class Runtime {
 };
 
 cusan_MemcpyKind infer_memcpy_direction(const void* target, const void* from);
-
+cusan_MemcpyKind hip_infer_memcpy_direction(const void* target, const void* from);
 }  // namespace cusan::runtime
 
 using namespace cusan::runtime;
@@ -322,7 +322,7 @@ inline std::optional<size_t> find_memory_alloc_size(const Runtime&, const void* 
 }  // namespace helper
 
 void _cusan_kernel_register(void** kernel_args, short* modes, int n, RawStream stream) {
-  LOG_TRACE("[cusan]Kernel Register with " << n << " Args and on stream:" << stream)
+  LOG_TRACE("[cusan] Kernel Register with " << n << " Args and on stream:" << stream)
   auto& runtime = Runtime::get();
 
   llvm::SmallVector<size_t, 4> sizes;
@@ -336,7 +336,7 @@ void _cusan_kernel_register(void** kernel_args, short* modes, int n, RawStream s
     const auto* ptr          = kernel_args[i];
     const auto size_in_bytes = helper::find_memory_alloc_size(runtime, ptr);
     if (!size_in_bytes) {
-      LOG_TRACE(" [cusan]    Querying allocation length failed on " << ptr);
+      LOG_TRACE("[cusan]    Querying allocation length failed on " << ptr);
       sizes.push_back(0);
       continue;
     }
@@ -527,8 +527,7 @@ void _cusan_memset_impl(void* target, size_t count) {
   auto& runtime = Runtime::get();
   runtime.stats_recorder.inc_memset_calls();
   runtime.switch_to_stream(Runtime::kDefaultStream);
-  LOG_TRACE("[cusan]    "
-            << "Write to " << target << " with size: " << count)
+  LOG_TRACE("[cusan]    " << "Write to " << target << " with size: " << count)
   TsanMemoryWritePC(target, count, __builtin_return_address(0));
   runtime.stats_recorder.inc_TsanMemoryWrite();
   runtime.happens_before();
@@ -537,12 +536,10 @@ void _cusan_memset_impl(void* target, size_t count) {
   auto* alloc_info = runtime.get_allocation_info(target);
   // if we couldn't find alloc info we just assume the worst and don't sync
   if ((alloc_info && (alloc_info->is_pinned || alloc_info->is_managed)) || CUSAN_SYNC_DETAIL_LEVEL == 0) {
-    LOG_TRACE("[cusan]    "
-              << "Memset is blocking")
+    LOG_TRACE("[cusan]    " << "Memset is blocking")
     runtime.happens_after_stream(Runtime::kDefaultStream);
   } else {
-    LOG_TRACE("[cusan]    "
-              << "Memset is not blocking")
+    LOG_TRACE("[cusan]    " << "Memset is not blocking")
     if (!alloc_info) {
       LOG_DEBUG("[cusan]    Failed to get alloc info " << target);
     } else if (!alloc_info->is_pinned && !alloc_info->is_managed) {
@@ -603,11 +600,20 @@ void _cusan_memcpy_async_impl(void* target, size_t write_size, const void* from,
   }
 }
 
-void _cusan_memcpy_impl(void* target, size_t write_size, const void* from, size_t read_size, cusan_MemcpyKind kind) {
+void _cusan_memcpy_impl(void* target, size_t write_size, const void* from, size_t read_size, cusan_MemcpyKind kind,
+                        bool is_cuda) {
   // TODO verify that the memcpy2d beheaviour is actually the same as normal memcpy
 
   if (kind == cusan_MemcpyDefault) {
-    kind = infer_memcpy_direction(target, from);
+    if (is_cuda) {
+      kind = infer_memcpy_direction(target, from);
+    } else {
+#ifdef CUSAN_HIP
+      kind = hip_infer_memcpy_direction(target, from);
+#else
+      LOG_TRACE("[cusan]   Got hip memcpy but did not compile with HIP support")
+#endif
+    }
   }
 
   auto& runtime = Runtime::get();
@@ -698,14 +704,14 @@ void _cusan_memcpy_async(void* target, const void* from, size_t count, cusan_Mem
 }
 
 void _cusan_memcpy_2d(void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height,
-                      cusan_MemcpyKind kind) {
+                      cusan_MemcpyKind kind, bool is_cuda) {
   LOG_TRACE("[cusan]Memcpy2d " << width * height << " from:" << from << " to:" << target);
   size_t read_size  = spitch * height;
   size_t write_size = dpitch * height;
-  _cusan_memcpy_impl(target, write_size, from, read_size, kind);
+  _cusan_memcpy_impl(target, write_size, from, read_size, kind, is_cuda);
 }
 
-void _cusan_memcpy(void* target, const void* from, size_t count, cusan_MemcpyKind kind) {
+void _cusan_memcpy(void* target, const void* from, size_t count, cusan_MemcpyKind kind, bool is_cuda) {
   LOG_TRACE("[cusan]Memcpy " << count << " from:" << from << " to:" << target);
-  _cusan_memcpy_impl(target, count, from, count, kind);
+  _cusan_memcpy_impl(target, count, from, count, kind, is_cuda);
 }
