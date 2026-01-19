@@ -266,26 +266,27 @@ void collect_children(FunctionArg& arg, llvm::Value* value, llvm::SmallSet<llvm:
           continue;
         }
         // for memcpy we can skip parts but still need to update the access state
-        //if (called->getName().starts_with("llvm.memcpy") || called->getName().starts_with("llvm.memmove") ||
-        //    called->getName().starts_with("llvm.memset")) {
-        //  if (value_use.getOperandNo() == 0) {  // destination
-        //    auto* res = llvm::find_if(arg.subargs, [=](auto a) { return a.value.value_or(nullptr) == value; });
-        //    assert(res != arg.subargs.end());
-        //    res->state = mergeAccessState(res->state, AccessState::kWritten);
-        //    continue;
-        //  }
-        //  if (value_use.getOperandNo() == 1) {  // input
-        //    auto* res = llvm::find_if(arg.subargs, [=](auto a) { return a.value.value_or(nullptr) == value; });
-        //    assert(res != arg.subargs.end());
-        //    res->state = mergeAccessState(res->state, AccessState::kRead);
-        //    collect_children(arg, call->getArgOperand(0), visited_funcs);
-        //    llvm::errs() << *call->getCaller() << "\n";
-        //    llvm::errs() << "<<<" << *call->getArgOperand(0) << "\n";
-        //    llvm::errs() << "<<<" << *value << "\n";
-        //    llvm::errs() << "<<<" << arg << "\n";
-        //    continue;
-        //  }
-        //}
+        if (called->getName().starts_with("llvm.memcpy") || called->getName().starts_with("llvm.memmove") ||
+            called->getName().starts_with("llvm.memset")) {
+          if (value_use.getOperandNo() == 0) {  // destination
+            auto* res = llvm::find_if(arg.subargs, [=](auto a) { return a.value.value_or(nullptr) == value; });
+            assert(res != arg.subargs.end());
+            res->state = mergeAccessState(res->state, AccessState::kWritten);
+            continue;
+          }
+          if (value_use.getOperandNo() == 1) {  // input
+            auto* res = llvm::find_if(arg.subargs, [=](auto a) { return a.value.value_or(nullptr) == value; });
+            assert(res != arg.subargs.end());
+            res->state = mergeAccessState(res->state, AccessState::kRead);
+            ignore_instrs.insert(call);
+            collect_children(arg, call->getArgOperand(0), visited_funcs, ignore_instrs);
+            llvm::errs() << *call->getCaller() << "\n";
+            llvm::errs() << "<<<" << *call->getArgOperand(0) << "\n";
+            llvm::errs() << "<<<" << *value << "\n";
+            llvm::errs() << "<<<" << arg << "\n";
+            continue;
+          }
+        }
         if (called->isDeclaration()) {
           LOG_WARNING("Could not determine pointer access of the "
                       << arg.arg_pos
