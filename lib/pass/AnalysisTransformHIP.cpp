@@ -499,7 +499,18 @@ llvm::SmallVector<Value*> HipMemset2dInstrumenter::map_arguments(IRBuilder<>& ir
   return {dst_ptr, pitch, height, width};
 }
 
+// HipStreamWaitEventInstrumenter
 
+HipStreamWaitEventInstrumenter::HipStreamWaitEventInstrumenter(callback::FunctionDecl* decls) {
+  setup("hipStreamWaitEvent", &decls->cusan_stream_wait_event.f);
+}
+llvm::SmallVector<Value*> HipStreamWaitEventInstrumenter::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  assert(args.size() == 3);
+  // auto* hip_stream_void_ptr = irb.CreateLoad(get_void_ptr_type(irb), args[0], "");
+  auto* hip_stream_void_ptr = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
+  auto* hip_event_void_ptr  = irb.CreateBitOrPointerCast(args[1], get_void_ptr_type(irb));
+  return {hip_stream_void_ptr, hip_event_void_ptr, args[2]};
+}
 
 }  // namespace transform
 }  // namespace cusan

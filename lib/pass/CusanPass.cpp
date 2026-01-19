@@ -209,7 +209,7 @@ bool CusanPass::runOnFunc(llvm::Function& function) {
   modified |= transform::HipMemsetAsyncInstrumenter(&cusan_decls_).instrument(function);
   modified |= transform::HipMemset2dAsyncInstrumenter(&cusan_decls_).instrument(function);
   modified |= transform::HipMemset2dInstrumenter(&cusan_decls_).instrument(function);
-
+  modified |= transform::HipStreamWaitEventInstrumenter(&cusan_decls_).instrument(function);
 
   auto data_for_host = host::kernel_model_for_stub(&function, this->kernel_models_);
   if (data_for_host) {

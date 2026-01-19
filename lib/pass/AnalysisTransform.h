@@ -328,7 +328,7 @@ BasicInstrumenterDecl(HipEventSyncInstrumenter);
 BasicInstrumenterDecl(HipMemsetAsyncInstrumenter);
 BasicInstrumenterDecl(HipMemset2dAsyncInstrumenter);
 BasicInstrumenterDecl(HipMemset2dInstrumenter);
-
+BasicInstrumenterDecl(HipStreamWaitEventInstrumenter);
 
 class HipMallocPitch : public SimpleInstrumenter<HipMallocPitch> {
  public:
@@ -370,7 +370,7 @@ class HipStreamQuery : public SimpleInstrumenter<HipStreamQuery> {
 // BasicInstrumenterDecl(CudaHostAlloc);
 // BasicInstrumenterDecl(CudaMallocHost);
 
-// BasicInstrumenterDecl(StreamWaitEventInstrumenter);
+
 // BasicInstrumenterDecl(CudaHostRegister);
 // BasicInstrumenterDecl(CudaHostUnregister);
 // BasicInstrumenterDecl(CudaHostFree);
