@@ -202,6 +202,13 @@ bool CusanPass::runOnFunc(llvm::Function& function) {
   modified |= transform::HipEventSyncInstrumenter(&cusan_decls_).instrument(function);
   modified |= transform::HipEventQuery(&cusan_decls_).instrument(function);
   modified |= transform::HipStreamQuery(&cusan_decls_).instrument(function);
+  modified |= transform::HipMallocPitch(&cusan_decls_).instrument(function);
+  modified |= transform::HipMemcpy2DInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::HipMemcpy2DAsyncInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::HipStreamCreateWithPriorityInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::HipMemsetAsyncInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::HipMemset2dAsyncInstrumenter(&cusan_decls_).instrument(function);
+  modified |= transform::HipMemset2dInstrumenter(&cusan_decls_).instrument(function);
 
 
   auto data_for_host = host::kernel_model_for_stub(&function, this->kernel_models_);

@@ -392,5 +392,114 @@ llvm::SmallVector<Value*, 1> HipEventQuery::map_return_value(IRBuilder<>& irb, V
   return {result};
 }
 
+
+//  HipMemcpy2DInstrumenter
+
+HipMemcpy2DInstrumenter::HipMemcpy2DInstrumenter(callback::FunctionDecl* decls) {
+  setup("hipMemcpy2D", &decls->cusan_memcpy_2d.f);
+}
+llvm::SmallVector<Value*> HipMemcpy2DInstrumenter::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  // void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height, cusan_MemcpyKind kind
+  assert(args.size() == 7);
+  auto* dst_ptr = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
+  auto* dpitch  = args[1];
+  auto* src_ptr = irb.CreateBitOrPointerCast(args[2], get_void_ptr_type(irb));
+  auto* spitch  = args[3];
+  auto* width   = args[4];
+  auto* height  = args[5];
+  auto* kind    = args[6];
+  return {dst_ptr, dpitch, src_ptr, spitch, width, height, kind, irb.getInt8(1)};
+}
+
+// HipMemcpy2DAsyncInstrumenter
+
+HipMemcpy2DAsyncInstrumenter::HipMemcpy2DAsyncInstrumenter(callback::FunctionDecl* decls) {
+  setup("hipMemcpy2DAsync", &decls->cusan_memcpy_2d_async.f);
+}
+llvm::SmallVector<Value*> HipMemcpy2DAsyncInstrumenter::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  // void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height, cusan_MemcpyKind kind,
+  // stream
+  assert(args.size() == 8);
+  auto* dst_ptr   = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
+  auto* dpitch    = args[1];
+  auto* src_ptr   = irb.CreateBitOrPointerCast(args[2], get_void_ptr_type(irb));
+  auto* spitch    = args[3];
+  auto* width     = args[4];
+  auto* height    = args[5];
+  auto* kind      = args[6];
+  auto* hip_stream = irb.CreateBitOrPointerCast(args[7], get_void_ptr_type(irb));
+  return {dst_ptr, dpitch, src_ptr, spitch, width, height, kind, hip_stream};
+}
+
+
+// HipStreamCreateWithPriorityInstrumenter
+
+HipStreamCreateWithPriorityInstrumenter::HipStreamCreateWithPriorityInstrumenter(callback::FunctionDecl* decls) {
+  setup("hipStreamCreateWithPriority", &decls->cusan_stream_create.f);
+}
+
+llvm::SmallVector<Value*> HipStreamCreateWithPriorityInstrumenter::map_arguments(IRBuilder<>& irb,
+                                                                              llvm::ArrayRef<Value*> args) {
+  assert(args.size() == 3);
+  auto* hip_stream_void_ptr_ptr = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
+  auto* flags                  = args[1];
+  return {hip_stream_void_ptr_ptr, flags};
+}
+
+
+
+
+
+// HipMemsetAsyncInstrumenter
+
+HipMemsetAsyncInstrumenter::HipMemsetAsyncInstrumenter(callback::FunctionDecl* decls) {
+  setup("hipMemsetAsync", &decls->cusan_memset_async.f);
+}
+llvm::SmallVector<Value*> HipMemsetAsyncInstrumenter::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  //( void* devPtr, int  value, size_t count, hipStream_t stream = 0 )
+  assert(args.size() == 4);
+  auto* dst_ptr = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
+  // auto* value     = args[1];
+  auto* count     = args[2];
+  auto* cu_stream = irb.CreateBitOrPointerCast(args[3], get_void_ptr_type(irb));
+  return {dst_ptr, count, cu_stream};
+}
+
+// HipMemset2dAsyncInstrumenter
+
+HipMemset2dAsyncInstrumenter::HipMemset2dAsyncInstrumenter(callback::FunctionDecl* decls) {
+  setup("hipMemset2DAsync", &decls->cusan_memset_2d_async.f);
+}
+llvm::SmallVector<Value*> HipMemset2dAsyncInstrumenter::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  // void* devPtr, size_t pitch, int  value, size_t width, size_t height, hipStream_t stream = 0
+  assert(args.size() == 6);
+  auto* dst_ptr = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
+  auto* pitch   = args[1];
+  // auto* value     = args[2];
+  auto* height    = args[3];
+  auto* width     = args[4];
+  auto* cu_stream = irb.CreateBitOrPointerCast(args[5], get_void_ptr_type(irb));
+  return {dst_ptr, pitch, height, width, cu_stream};
+}
+
+// HipMemset2dInstrumenter
+
+HipMemset2dInstrumenter::HipMemset2dInstrumenter(callback::FunctionDecl* decls) {
+  setup("hipMemset2D", &decls->cusan_memset_2d.f);
+}
+llvm::SmallVector<Value*> HipMemset2dInstrumenter::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  // void* devPtr, size_t pitch, int  value, size_t width, size_t height
+  assert(args.size() == 5);
+  auto* dst_ptr = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
+  auto* pitch   = args[1];
+  // auto* value   = args[2];
+  auto* height = args[3];
+  auto* width  = args[4];
+  ;
+  return {dst_ptr, pitch, height, width};
+}
+
+
+
 }  // namespace transform
 }  // namespace cusan

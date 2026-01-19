@@ -312,15 +312,44 @@ BasicInstrumenterDecl(HipMemcpyInstrumenter);
 BasicInstrumenterDecl(HipMalloc);
 BasicInstrumenterDecl(HipMallocManaged);
 BasicInstrumenterDecl(HipMemsetInstrumenter);
+BasicInstrumenterDecl(HipMemcpy2DInstrumenter);
+BasicInstrumenterDecl(HipMemcpy2DAsyncInstrumenter);
 BasicInstrumenterDecl(HipStreamSyncInstrumenter);
 BasicInstrumenterDecl(HipFree);
 BasicInstrumenterDecl(HipStreamCreateInstrumenter);
 BasicInstrumenterDecl(HipStreamCreateWithFlagsInstrumenter);
+BasicInstrumenterDecl(HipStreamCreateWithPriorityInstrumenter);
 
 BasicInstrumenterDecl(HipEventCreateInstrumenter);
 BasicInstrumenterDecl(HipEventCreateWithFlagsInstrumenter);
 BasicInstrumenterDecl(HipEventRecordInstrumenter);
 BasicInstrumenterDecl(HipEventSyncInstrumenter);
+
+BasicInstrumenterDecl(HipMemsetAsyncInstrumenter);
+BasicInstrumenterDecl(HipMemset2dAsyncInstrumenter);
+BasicInstrumenterDecl(HipMemset2dInstrumenter);
+
+
+class HipMallocPitch : public SimpleInstrumenter<HipMallocPitch> {
+ public:
+  HipMallocPitch(callback::FunctionDecl* decls) {
+    setup("hipMallocPitch", &decls->cusan_device_alloc.f);
+  }
+  static llvm::SmallVector<Value*, 2> map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+    //(void** devPtr, size_t* pitch, size_t width, size_t height )
+    assert(args.size() == 4);
+    auto* ptr = irb.CreateBitOrPointerCast(args[0], irb.getInt8Ty()->getPointerTo());
+
+    //"The function may pad the allocation"
+    //"*pitch by hipMallocPitch() is the width in bytes of the allocation"
+    auto* pitch = irb.CreateLoad(irb.getIntPtrTy(irb.GetInsertBlock()->getModule()->getDataLayout()), args[1]);
+    // auto* width = args[2];
+    auto* height = args[3];
+
+    auto* real_size = irb.CreateMul(pitch, height);
+    return {ptr, real_size};
+  }
+};
 
 class HipEventQuery : public SimpleInstrumenter<HipEventQuery> {
  public:
@@ -338,15 +367,9 @@ class HipStreamQuery : public SimpleInstrumenter<HipStreamQuery> {
 // TODO
 
 // BasicInstrumenterDecl(EventRecordFlagsInstrumenter);
-// BasicInstrumenterDecl(CudaMemcpy2DInstrumenter);
-// BasicInstrumenterDecl(CudaMemcpy2DAsyncInstrumenter);
-// BasicInstrumenterDecl(CudaMemsetAsyncInstrumenter);
-// BasicInstrumenterDecl(CudaMemset2dAsyncInstrumenter);
-// BasicInstrumenterDecl(CudaMemset2dInstrumenter);
 // BasicInstrumenterDecl(CudaHostAlloc);
 // BasicInstrumenterDecl(CudaMallocHost);
 
-// BasicInstrumenterDecl(StreamCreateWithPriorityInstrumenter);
 // BasicInstrumenterDecl(StreamWaitEventInstrumenter);
 // BasicInstrumenterDecl(CudaHostRegister);
 // BasicInstrumenterDecl(CudaHostUnregister);

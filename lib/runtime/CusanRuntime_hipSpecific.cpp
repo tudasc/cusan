@@ -12,9 +12,7 @@
 
 namespace cusan::runtime {
 cusan_MemcpyKind hip_infer_memcpy_direction(const void* target, const void* from) {
-  hipDeviceProp_t prop;
-  hipGetDeviceProperties(&prop, 0);
-  assert(prop.unifiedAddressing && "Can only use default direction for memcpy when Unified memory is supported.");
+  //Note: unlike CUDA they do not specify that unified addressing is needed
 
   hipPointerAttribute_t target_attribs;
   hipPointerGetAttributes(&target_attribs, target);

@@ -691,7 +691,8 @@ void _cusan_memcpy_impl(void* target, size_t write_size, const void* from, size_
 
 void _cusan_memcpy_2d_async(void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height,
                             cusan_MemcpyKind kind, RawStream stream) {
-  LOG_TRACE("[cusan]MemcpyAsync" << width * height << " bytes to:" << target)
+  LOG_TRACE("[cusan]Memcpy2dAsync " << width * height << " bytes from:" << from << " to:" << target
+                                    << " dpitch:" << dpitch << " spitch:" << spitch);
 
   size_t read_size  = spitch * height;
   size_t write_size = dpitch * height;
@@ -699,7 +700,7 @@ void _cusan_memcpy_2d_async(void* target, size_t dpitch, const void* from, size_
 }
 
 void _cusan_memcpy_async(void* target, const void* from, size_t count, cusan_MemcpyKind kind, RawStream stream) {
-  LOG_TRACE("[cusan]MemcpyAsync" << count << " bytes to:" << target)
+  LOG_TRACE("[cusan]MemcpyAsync " << count << " bytes from:" << from << " to:" << target)
   _cusan_memcpy_async_impl(target, count, from, count, kind, stream);
 }
 

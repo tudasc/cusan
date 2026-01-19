@@ -20,7 +20,27 @@ namespace cusan {
 
 namespace device {
 
-// Taken from (and extended to interprocedural analysis) from clang19
+// when we store an argument into a local alloca we can then follow that alloca with this function
+// returns a true if it escapes otherwise false
+static bool determinePointerAccessAttrsForLocalPtrUse(llvm::Use& use_of_ptr,
+                                                      llvm::SmallVector<llvm::Use*, 32>& worklist,
+                                                      llvm::SmallPtrSet<llvm::Use*, 32>& visited) {
+  using namespace llvm;
+  auto* i = cast<Instruction>(use_of_ptr.getUser());
+  switch (i->getOpcode()) {
+    case Instruction::Load:
+      if (cast<LoadInst>(i)->isVolatile())
+        return true;
+      for (Use& uu : i->uses())
+        if (visited.insert(&uu).second)
+          worklist.push_back(&uu);
+      return false;
+    default:
+      return true;
+  }
+}
+
+// Taken from (and extended to interprocedural analysis + looking through local stores) from clang19
 // https://llvm.org/doxygen/FunctionAttrs_8cpp_source.html#l00611
 static llvm::Attribute::AttrKind determinePointerAccessAttrs(llvm::Value* value) {
   using namespace llvm;
@@ -42,7 +62,6 @@ static llvm::Attribute::AttrKind determinePointerAccessAttrs(llvm::Value* value)
 
     Use* u  = worklist.pop_back_val();
     auto* i = cast<Instruction>(u->getUser());
-
     switch (i->getOpcode()) {
       case Instruction::BitCast:
       case Instruction::GetElementPtr:
@@ -125,14 +144,46 @@ static llvm::Attribute::AttrKind determinePointerAccessAttrs(llvm::Value* value)
         break;
 
       case Instruction::Store:
-        if (cast<StoreInst>(i)->getValueOperand() == *u)
-          // untrackable capture
-          return Attribute::None;
-
         // A volatile store has side effects beyond what writeonly can be relied
         // upon.
         if (cast<StoreInst>(i)->isVolatile())
           return Attribute::None;
+
+        if (cast<StoreInst>(i)->getValueOperand() == *u) {
+          auto* addr_cast_ptr = cast<StoreInst>(i)->getPointerOperand();
+          auto* alloca_ptr    = addr_cast_ptr;
+          bool has_addr_cast  = false;
+          if (auto cast = dyn_cast<AddrSpaceCastInst>(alloca_ptr)) {
+            alloca_ptr    = cast->getPointerOperand();
+            has_addr_cast = true;
+          }
+          if (auto alloc = dyn_cast<AllocaInst>(alloca_ptr)) {
+            alloca_ptr = alloc;
+          } else {
+            alloca_ptr = nullptr;
+          }
+          if (alloca_ptr != nullptr) {
+            if (has_addr_cast) {
+              for (Use& UU : addr_cast_ptr->uses()) {
+                if (visited.insert(&UU).second && cast<Instruction>(UU.getUser()) != i)
+                  if (determinePointerAccessAttrsForLocalPtrUse(UU, worklist, visited)) {
+                    return Attribute::None;
+                  }
+              }
+            }
+            for (Use& UU : alloca_ptr->uses()) {
+              bool skip_addr_space_cast = (!has_addr_cast || cast<Instruction>(UU.getUser()) != addr_cast_ptr);
+              if (visited.insert(&UU).second && cast<Instruction>(UU.getUser()) != i && skip_addr_space_cast)
+                if (determinePointerAccessAttrsForLocalPtrUse(UU, worklist, visited)) {
+                  return Attribute::None;
+                }
+            }
+
+            continue;
+          }
+          // untrackable capture
+          return Attribute::None;
+        }
 
         is_write = true;
         break;
@@ -195,7 +246,8 @@ void collect_subsequent_load(FunctionArg& arg, llvm::Value* value, llvm::SmallVe
   }
 }
 
-void collect_children(FunctionArg& arg, llvm::Value* value, llvm::SmallSet<llvm::Function*, 8>& visited_funcs) {
+void collect_children(FunctionArg& arg, llvm::Value* value, llvm::SmallSet<llvm::Function*, 8>& visited_funcs,
+                      llvm::SmallSet<llvm::Instruction*, 8>& ignore_instrs) {
   using namespace llvm;
 
   Type* value_type = value->getType();
@@ -204,12 +256,36 @@ void collect_children(FunctionArg& arg, llvm::Value* value, llvm::SmallSet<llvm:
     //  if (elem_type->isStructTy() || elem_type->isPointerTy()) {
     for (Use& value_use : value->uses()) {
       User* value_user = value_use.getUser();
+      if (ignore_instrs.contains(dyn_cast<Instruction>(value_user))) {
+        continue;
+      }
       if (auto* call = dyn_cast<CallBase>(value_user)) {
         Function* called = call->getCalledFunction();
         if (visited_funcs.contains(called)) {
           LOG_WARNING("Not handling recursive kernels right now");
           continue;
         }
+        // for memcpy we can skip parts but still need to update the access state
+        //if (called->getName().starts_with("llvm.memcpy") || called->getName().starts_with("llvm.memmove") ||
+        //    called->getName().starts_with("llvm.memset")) {
+        //  if (value_use.getOperandNo() == 0) {  // destination
+        //    auto* res = llvm::find_if(arg.subargs, [=](auto a) { return a.value.value_or(nullptr) == value; });
+        //    assert(res != arg.subargs.end());
+        //    res->state = mergeAccessState(res->state, AccessState::kWritten);
+        //    continue;
+        //  }
+        //  if (value_use.getOperandNo() == 1) {  // input
+        //    auto* res = llvm::find_if(arg.subargs, [=](auto a) { return a.value.value_or(nullptr) == value; });
+        //    assert(res != arg.subargs.end());
+        //    res->state = mergeAccessState(res->state, AccessState::kRead);
+        //    collect_children(arg, call->getArgOperand(0), visited_funcs);
+        //    llvm::errs() << *call->getCaller() << "\n";
+        //    llvm::errs() << "<<<" << *call->getArgOperand(0) << "\n";
+        //    llvm::errs() << "<<<" << *value << "\n";
+        //    llvm::errs() << "<<<" << arg << "\n";
+        //    continue;
+        //  }
+        //}
         if (called->isDeclaration()) {
           LOG_WARNING("Could not determine pointer access of the "
                       << arg.arg_pos
@@ -232,7 +308,7 @@ void collect_children(FunctionArg& arg, llvm::Value* value, llvm::SmallSet<llvm:
             assert(false);
           }
         }
-        collect_children(arg, ipo_argument, visited_funcs);
+        collect_children(arg, ipo_argument, visited_funcs, ignore_instrs);
       } else if (auto* gep = dyn_cast<GetElementPtrInst>(value_user)) {
         auto gep_indicies                  = gep->indices();
         llvm::SmallVector<int64_t> indices = {};
@@ -255,14 +331,23 @@ void collect_children(FunctionArg& arg, llvm::Value* value, llvm::SmallSet<llvm:
           collect_subsequent_load(arg, gep, std::move(indices));
           // work_list.push_back({gep, sub_index_stack});
         }
+      } else if (auto* c = dyn_cast<AddrSpaceCastInst>(value_user)) {
+        collect_children(arg, c, visited_funcs, ignore_instrs);
       }
+      // else if (auto* c = dyn_cast<StoreInst>(value_user)) {
+      //   if (auto t = 	dyn_cast<AllocaInstr>(c.getPointerOperand()) && !c.isVolatile()) {
+      //     ignore_instrs.insert(c);
+      //     collect_children(arg, t, visited_funcs, ignore_instrs);
+      //   }
+      // }
     }
 
-    for (User* value_user : value->users()) {
-      if (dyn_cast<LoadInst>(value_user)) {
-        collect_subsequent_load(arg, value, {});
-      }
-    }
+    // for (User* value_user : value->users()) {
+    //   if (value_user.contains(dyn_cast<Instruction>(value_user))) {
+    //     continue;
+    //   };
+    // }
+    collect_subsequent_load(arg, value, {});
   } else {
     return;
   }
@@ -279,8 +364,9 @@ void attribute_value(FunctionArg& arg) {
     arg.is_pointer = true;
     arg.value      = value;
     arg.subargs.emplace_back(kernel_arg);
-    llvm::SmallSet<llvm::Function*, 8> visited_funcs = {};
-    collect_children(arg, value, visited_funcs);
+    llvm::SmallSet<llvm::Function*, 8> visited_funcs   = {};
+    llvm::SmallSet<llvm::Instruction*, 8> ignore_instr = {};
+    collect_children(arg, value, visited_funcs, ignore_instr);
   } else {
     const FunctionSubArg kernel_arg{value, false, {}, false, AccessState::kRW};
     arg.subargs.emplace_back(kernel_arg);
