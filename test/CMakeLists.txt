@@ -36,6 +36,7 @@ function(configure_cusan_lit_site_cfg input output)
 
   pythonize_bool(${CUSAN_TEST_WORKAROUNDS} CUSAN_TEST_WORKAROUND)
   pythonize_bool(${CUSAN_TYPEART} CUSAN_HAS_TYPEART)
+  pythonize_bool(${CUSAN_HIP} CUSAN_WITH_HIP)
 
   cusan_target_generate_file(${input} ${output})
 endfunction()

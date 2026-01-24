@@ -5,6 +5,8 @@
 // RUN: %wrapper-hip -DCUSAN_SYNC %clang_args -x hip -g %s -o %cusan_test_dir/%basename_t-sync.exe
 // RUN: %tsan-options%cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-SYNC
 
+// REQUIRES: hip
+
 // clang-format on
 
 // CHECK-DAG: data race
@@ -12,7 +14,6 @@
 // CHECK-SYNC-NOT: data race
 
 #include <hip/hip_runtime.h>
-
 #include <unistd.h>
 
 __global__ void kernel(int* arr, const int N) {

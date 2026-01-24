@@ -23,6 +23,7 @@
 // CHECK-NOT: Handling Arg:
 
 // XFAIL: *
+// REQUIRES: cuda
 
 // clang-format on
 

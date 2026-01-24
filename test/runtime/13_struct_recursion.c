@@ -11,7 +11,7 @@
 // CHECK-SYNC-NOT: data race
 
 // FIXME: with typeart broken
-// REQUIRES: !typeart
+// REQUIRES: !typeart && cuda
 
 struct BufferStorage2 {
   int* buff;

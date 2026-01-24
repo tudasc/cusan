@@ -5,17 +5,20 @@
 
 // RUN: %wrapper-hip -DCUSAN_SYNC %clang_args -x hip %s -o %cusan_test_dir/%basename_t-sync.exe
 // RUN: %tsan-options %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
+
+// REQUIRES: hip && !typeart
+
 // clang-format on
 
 // CHECK-DAG: data race
 
 // CHECK-SYNC-NOT: data race
 
-// REQUIRES: !typeart
+// REQUIRES:
 
 #include <assert.h>
-#include <stdio.h>
 #include <hip/hip_runtime.h>
+#include <stdio.h>
 
 __global__ void kernel(int* arr, const int N, const unsigned int delay) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -63,7 +66,7 @@ int main(int argc, char* argv[]) {
 
   // do async non blocking copy which will fail if there was no sync between this and the writing kernel
   hipMemcpy2DAsync(h_data, width * sizeof(int), d_data, pitch, width * sizeof(int), height, hipMemcpyDeviceToHost,
-                    stream2);
+                   stream2);
   hipStreamSynchronize(stream2);
   for (int i = 0; i < width * height; i++) {
     const int buf_v = h_data[i];

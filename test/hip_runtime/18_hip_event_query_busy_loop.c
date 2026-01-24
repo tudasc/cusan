@@ -5,6 +5,8 @@
 // RUN: %wrapper-hip -DCUSAN_SYNC %clang_args -x hip %s -o %cusan_test_dir/%basename_t-sync.exe
 // RUN: %tsan-options %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
 
+// REQUIRES: hip
+
 // clang-format on
 
 // CHECK-DAG: data race
@@ -19,7 +21,7 @@
 __global__ void write_kernel_delay(int* arr, const int N, const unsigned int delay) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid < N) {
-            for (unsigned int x = 0; x < delay; x++) {
+    for (unsigned int x = 0; x < delay; x++) {
       arr[tid] += x * arr[tid];
     }
     arr[tid] = (tid + 1);

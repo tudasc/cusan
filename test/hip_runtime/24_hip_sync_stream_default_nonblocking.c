@@ -5,6 +5,8 @@
 // RUN: %wrapper-hip -DCUSAN_SYNC %clang_args -x hip %s -o %cusan_test_dir/%basename_t-sync.exe
 // RUN: %tsan-options %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-SYNC
 
+// REQUIRES: hip
+
 // CHECK-DAG: data race
 // CHECK-DAG: [Error] sync
 

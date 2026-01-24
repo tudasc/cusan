@@ -13,7 +13,7 @@
 // CHECK-SYNC-NOT: data race
 // CHECK-SYNC-NOT: [Error] sync
 
-// REQUIRES: !typeart
+// REQUIRES: !typeart && cuda
 
 #include "../support/gpu_mpi.h"
 

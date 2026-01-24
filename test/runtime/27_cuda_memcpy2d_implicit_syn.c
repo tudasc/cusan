@@ -13,7 +13,7 @@
 // CHECK-SYNC-NOT: data race
 // CHECK-SYNC-NOT: [Error] sync
 
-// REQUIRES: !typeart
+// REQUIRES: !typeart && cuda
 
 #include <assert.h>
 #include <stdio.h>

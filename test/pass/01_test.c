@@ -1,6 +1,7 @@
 // clang-format off
 // RUN: %rm-file %t.yaml 
 // RUN: %wrapper-cc %clang-pass-only-args --cusan-kernel-data=%t.yaml -x cuda --cuda-gpu-arch=sm_72 %s 2>&1 | %filecheck %s
+// REQUIRES: cuda
 // clang-format on
 
 // CHECK: {{(invoke|call)}} i32 @cudaMalloc

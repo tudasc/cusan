@@ -8,6 +8,8 @@
 // CHECK-NEXT: subarg: {{.*}}, is_loading, gep_indices:[0, 0, ], ptr: 1, rw: Write
 // CHECK-NOT: Handling Arg:
 
+// REQUIRES: cuda
+
 // clang-format on
 
 #include <cstdio>

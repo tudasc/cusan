@@ -1,6 +1,9 @@
 // clang-format off
 // RUN: %wrapper-hip %clang_args -x hip %s -o %cusan_test_dir/%basename_t.exe
 // RUN: %tsan-options %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck --allow-empty %s
+
+// REQUIRES: hip
+
 // clang-format on
 
 // CHECK-NOT: data race

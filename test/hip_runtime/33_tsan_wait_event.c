@@ -5,6 +5,8 @@
 // RUN: %wrapper-hip -DCUSAN_SYNC %clang_args -x hip -g %s -o %cusan_test_dir/%basename_t-sync.exe
 // RUN: %tsan-options %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-SYNC
 
+// REQUIRES: hip
+
 // CHECK-DAG: data race
 
 // CHECK-SYNC-NOT: data race
@@ -24,8 +26,7 @@ __global__ void writing_kernel(float* arr, const int N, float value) {
   }
 }
 
-__global__ void reading_kernel(float* res, const float* read, const int N,
-                               float value) {
+__global__ void reading_kernel(float* res, const float* read, const int N, float value) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid < N) {
     res[tid] = read[tid] + value;

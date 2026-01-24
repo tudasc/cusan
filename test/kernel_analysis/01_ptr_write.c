@@ -7,6 +7,8 @@
 // CHECK-NEXT: subarg: {{.*}} ptr: 1, rw: Write
 // CHECK-NOT: Handling Arg:
 
+// REQUIRES: cuda
+
 // clang-format on
 
 #include <cuda_runtime.h>
