@@ -25,9 +25,6 @@ string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}"
   PROJECT_IS_TOP_LEVEL
 )
 
-find_package(CUDAToolkit REQUIRED)
-find_package(MPI REQUIRED)
-
 option(CUSAN_TEST_CONFIGURE_IDE "Add targets for tests to help the IDE with completion etc." ON)
 mark_as_advanced(CUSAN_TEST_CONFIGURE_IDE)
 option(CUSAN_CONFIG_DIR_IS_SHARE "Install to \"share/cmake/\" instead of \"lib/cmake/\"" OFF)
@@ -45,6 +42,12 @@ option(CUSAN_SYNC_DETAIL_LEVEL "Enable implicit sync analysis of memcpy/memset" 
 option(CUSAN_TEST_WORKAROUNDS "Enable workarounds for MPI + TSan regarding runtime tests" ON)
 mark_as_advanced(CUSAN_TEST_WORKAROUNDS)
 
+if(NOT CUSAN_HIP)
+  find_package(CUDAToolkit REQUIRED)
+else()
+  find_package(hip REQUIRED)
+endif()
+find_package(MPI REQUIRED)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
   set(CUSAN_LOG_LEVEL_RT 0 CACHE STRING "" FORCE)

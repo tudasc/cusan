@@ -63,10 +63,12 @@ export(
   NAMESPACE cusan::
 )
 
-add_library(cusan_Runtime SHARED CusanRuntime.cpp CusanRuntime_cudaSpecific.cpp)
+add_library(cusan_Runtime SHARED CusanRuntime.cpp)
 
 if(CUSAN_HIP)
   target_sources(cusan_Runtime PRIVATE CusanRuntime_hipSpecific.cpp)
+else()
+  target_sources(cusan_Runtime PRIVATE CusanRuntime_cudaSpecific.cpp)
 endif()
 
 set_target_properties(
@@ -80,7 +82,11 @@ add_library(cusan::Runtime ALIAS cusan_Runtime)
 target_compile_features(cusan_Runtime PUBLIC cxx_std_17)
 
 # latter for cudaSpecific.cpp:
-target_link_libraries(cusan_Runtime PRIVATE CUDA::cudart)
+if(CUSAN_HIP)
+  target_link_libraries(cusan_Runtime PRIVATE hip::host)
+else()
+  target_link_libraries(cusan_Runtime PRIVATE CUDA::cudart)
+endif()
 
 if(CUSAN_TYPEART)
   target_link_libraries(cusan_Runtime PRIVATE typeart::Runtime)
