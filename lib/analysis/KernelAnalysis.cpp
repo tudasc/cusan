@@ -266,8 +266,7 @@ void collect_children(FunctionArg& arg, llvm::Value* value, llvm::SmallSet<llvm:
           continue;
         }
         // for memcpy we can skip parts but still need to update the access state
-        if (called->getName().starts_with("llvm.memcpy") || called->getName().starts_with("llvm.memmove") ||
-            called->getName().starts_with("llvm.memset")) {
+        if (util::starts_with_any_of(called->getName(), "llvm.memcpy", "llvm.memmove", "llvm.memset")) {
           if (value_use.getOperandNo() == 0) {  // destination
             auto* res = llvm::find_if(arg.subargs, [=](auto a) { return a.value.value_or(nullptr) == value; });
             assert(res != arg.subargs.end());
@@ -423,11 +422,7 @@ std::optional<KernelModel> kernel_model_for_stub(llvm::Function* func, const Mod
   }(util::try_demangle_fully(*func));
 
   const auto result = llvm::find_if(models.models, [&stub_name](const auto& model_) {
-#if LLVM_VERSION_MAJOR > 15
-    return llvm::StringRef(util::try_demangle_fully(model_.kernel_name)).starts_with(stub_name);
-#else
-    return llvm::StringRef(util::try_demangle_fully(model_.kernel_name)).startswith(stub_name);
-#endif
+    return util::starts_with_any_of(util::try_demangle_fully(model_.kernel_name), stub_name);
   });
 
   if (result != std::end(models.models)) {
