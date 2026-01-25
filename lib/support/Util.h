@@ -7,6 +7,7 @@
 #ifndef CUSAN_UTIL_H
 #define CUSAN_UTIL_H
 
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/InstrTypes.h"
@@ -80,6 +81,29 @@ inline void dump_module_if(const llvm::Module& module, std::string_view env_var,
   if (env_val) {
     module.print(out_s, nullptr);
   }
+}
+
+template <typename... StringTy>
+bool with_any_of(llvm::StringRef lhs, StringTy&&... rhs) {
+  return !lhs.empty() && ((lhs == rhs) || ...);
+}
+
+template <typename... StringTy>
+inline bool starts_with_any_of(llvm::StringRef lhs, StringTy... rhs) {
+#if LLVM_VERSION_MAJOR > 15
+  return !lhs.empty() && ((lhs.starts_with(rhs)) || ...);
+#else
+  return !lhs.empty() && ((lhs.startswith(rhs)) || ...);
+#endif
+}
+
+template <typename... StringTy>
+inline bool ends_with_any_of(llvm::StringRef lhs, StringTy... rhs) {
+#if LLVM_VERSION_MAJOR > 15
+  return !lhs.empty() && ((lhs.ends_with(rhs)) || ...);
+#else
+  return !lhs.empty() && ((lhs.endswith(rhs)) || ...);
+#endif
 }
 
 }  // namespace cusan::util
