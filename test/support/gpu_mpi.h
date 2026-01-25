@@ -1,10 +1,17 @@
 #ifndef CUSAN_GPUAWAREMPI_H
 #define CUSAN_GPUAWAREMPI_H
 
-#include <mpi-ext.h>
+// clang-format off
 #include <mpi.h>
+#include <mpi-ext.h>
+
+#ifdef __cplusplus
+#include <cstdio>
+#else
 #include <stdbool.h>
 #include <stdio.h>
+#endif
+// clang-format on
 
 #ifdef __cplusplus
 extern "C" {
