@@ -1,7 +1,10 @@
 function(configure_cusan_script input output)
   cmake_parse_arguments(
-    ARG "" "" "INSTALL_MODE;COMPILER;WITH_FILTER;APPLY_MODE" ${ARGN}
+    ARG "" "" "INSTALL_MODE;COMPILER;WITH_FILTER;APPLY_MODE;WRAPPER_MODE;EXTRA_LDFLAGS" ${ARGN}
   )
+
+  set(CUSAN_WRAPPER_MODE ${ARG_WRAPPER_MODE})
+  set(CUSAN_EXTRA_LDFLAGS ${ARG_EXTRA_LDFLAGS})
 
   set(CUSAN_BINARY_DIR ${cusan_BINARY_DIR})
 
@@ -91,6 +94,40 @@ function(configure_cusan_script input output)
   cusan_target_generate_file(${input} ${output})
 endfunction()
 
+function(configure_cusan_wrapper name compiler)
+  cmake_parse_arguments(ARG "WITH_FILTER" "" "" ${ARGN})
+  set(extra_args "")
+  if(ARG_WITH_FILTER)
+    set(extra_args WITH_FILTER ON)
+  endif()
+
+  # Configure for installation
+  configure_cusan_script(
+    ${CUSAN_WRAPPER} ${name}${CMAKE_DEBUG_POSTFIX}
+    INSTALL_MODE ON
+    COMPILER "${compiler}"
+    WRAPPER_MODE "${CUSAN_WRAPPER_MODE_AUTO}"
+    EXTRA_LDFLAGS "${CUSAN_EXTRA_LDFLAGS_AUTO}"
+    ${extra_args}
+  )
+
+  # Configure for tests
+  configure_cusan_script(
+    ${CUSAN_WRAPPER} ${name}-test
+    COMPILER "${compiler}"
+    WRAPPER_MODE "${CUSAN_WRAPPER_MODE_AUTO}"
+    EXTRA_LDFLAGS "${CUSAN_EXTRA_LDFLAGS_AUTO}"
+    ${extra_args}
+  )
+
+  # Build the installation list
+  set(CUSAN_SCRIPTS_TO_INSTALL
+      ${CUSAN_SCRIPTS_TO_INSTALL}
+      ${CMAKE_CURRENT_BINARY_DIR}/${name}${CMAKE_DEBUG_POSTFIX}
+      PARENT_SCOPE
+  )
+endfunction()
+
 function(cusan_find_mpi_vendor_helper symbol ret_value)
   find_package(MPI)
 
@@ -124,20 +161,28 @@ function(set_cusan_mpi_compiler)
   list(APPEND l_env_c OMPI_CC I_MPI_CC MPICH_CC)
   list(APPEND l_env_cxx OMPI_CXX I_MPI_CXX MPICH_CXX)
 
+  if(CUSAN_HIP)
+    set(m_base_c ${CUSAN_HIPCC_EXEC})
+    set(m_base_cxx ${CUSAN_HIPCC_EXEC})
+  else()
+    set(m_base_c ${CUSAN_CLANG_EXEC})
+    set(m_base_cxx ${CUSAN_CLANGCXX_EXEC})
+  endif()
+
   foreach(vendor symbol env_c env_cxx IN ZIP_LISTS l_vendor l_symbol l_env_c l_env_cxx)
     cusan_find_mpi_vendor_helper(${symbol} CUSAN_HAVE_${vendor})
     if(CUSAN_HAVE_${vendor})
       if(MPI_C_FOUND)
         set(CUSAN_MPICC
-            "env ${env_c}=${CUSAN_CLANG_EXEC} ${MPI_C_COMPILER}"
-            CACHE STRING "CuSan MPICC compiler command for scripts"
+            "env ${env_c}=${m_base_c} ${MPI_C_COMPILER}"
+            CACHE STRING "CuSan MPICC compiler command for scripts" FORCE
           )
         mark_as_advanced(CUSAN_MPICC)
       endif()
       if(MPI_CXX_FOUND)
         set(CUSAN_MPICXX
-            "env ${env_cxx}=${CUSAN_CLANGCXX_EXEC} ${MPI_CXX_COMPILER}"
-            CACHE STRING "CuSan MPICXX compiler command for scripts"
+            "env ${env_cxx}=${m_base_cxx} ${MPI_CXX_COMPILER}"
+            CACHE STRING "CuSan MPICXX compiler command for scripts" FORCE
         )
         mark_as_advanced(CUSAN_MPICXX)
       endif()
@@ -155,7 +200,17 @@ if(CUSAN_TYPEART)
 else()
   set(CUSAN_WRAPPER cusan-wrapperv2.in)
 endif()
-set(CUSAN_HIP_WRAPPER cusan-hip-wrapperv2.in)
+
+set(CUSAN_WRAPPER_MODE_AUTO "CUDA")
+if(CUDAToolkit_LIBRARY_DIR)
+  set(CUSAN_EXTRA_LDFLAGS_AUTO "-L${CUDAToolkit_LIBRARY_DIR}/ -lcudart -lcudart_static -lcudadevrt")
+else()
+  set(CUSAN_EXTRA_LDFLAGS_AUTO "-lcudart -lcudart_static -lcudadevrt")
+endif()
+if(CUSAN_HIP)
+  set(CUSAN_WRAPPER_MODE_AUTO "HIP")
+  set(CUSAN_EXTRA_LDFLAGS_AUTO "")
+endif()
 
 if(NOT CUSAN_TYPEART)
   add_library(typeart_runtime_mock SHARED IMPORTED)
@@ -176,72 +231,25 @@ if(NOT CUSAN_TYPEART)
   )
 endif()
 
-find_package(MPI)
+# Will be appended in configure_cusan_wrapper calls:
+set(CUSAN_SCRIPTS_TO_INSTALL "")
+
 if(MPI_C_FOUND)
-  configure_cusan_script(
-    ${CUSAN_WRAPPER} cusan-mpicc${CMAKE_DEBUG_POSTFIX}
-    INSTALL_MODE ON
-    WITH_FILTER ON
-    COMPILER "${CUSAN_MPICC}"
-  )
-  configure_cusan_script(
-    ${CUSAN_WRAPPER} cusan-mpicc-test
-    WITH_FILTER ON
-    COMPILER "${CUSAN_MPICC}"
-  )
+  configure_cusan_wrapper(cusan-mpicc "${CUSAN_MPICC}" WITH_FILTER)
 endif()
 
 if(MPI_CXX_FOUND)
-  configure_cusan_script(
-    ${CUSAN_WRAPPER} cusan-mpic++${CMAKE_DEBUG_POSTFIX}
-    INSTALL_MODE ON
-    WITH_FILTER ON
-    COMPILER "${CUSAN_MPICXX}"
-  )
-  configure_cusan_script(
-    ${CUSAN_WRAPPER} cusan-mpic++-test
-    WITH_FILTER ON
-    COMPILER "${CUSAN_MPICXX}"
-  )
+  configure_cusan_wrapper(cusan-mpic++ "${CUSAN_MPICXX}" WITH_FILTER)
 endif()
 
-configure_cusan_script(
-  ${CUSAN_WRAPPER} cusan-clang${CMAKE_DEBUG_POSTFIX}
-  INSTALL_MODE ON
-  COMPILER ${CUSAN_CLANG_EXEC}
-)
-configure_cusan_script(
-  ${CUSAN_WRAPPER} cusan-clang++${CMAKE_DEBUG_POSTFIX}
-  INSTALL_MODE ON
-  COMPILER ${CUSAN_CLANGCXX_EXEC}
-)
-
-configure_cusan_script(
-  ${CUSAN_HIP_WRAPPER} cusan-hipcc${CMAKE_DEBUG_POSTFIX}
-  INSTALL_MODE ON
-  COMPILER ${CUSAN_HIPCC_EXEC}
-)
-
-configure_cusan_script(
-  ${CUSAN_WRAPPER} cusan-clang-test
-  COMPILER ${CUSAN_CLANG_EXEC}
-)
-configure_cusan_script(
-  ${CUSAN_WRAPPER} cusan-clang++-test
-  COMPILER ${CUSAN_CLANGCXX_EXEC}
-)
-
-configure_cusan_script(
-  ${CUSAN_WRAPPER} cusan-hipcc-test
-  COMPILER ${CUSAN_HIPCC_EXEC}
-)
+if(CUSAN_HIP)
+  configure_cusan_wrapper(cusan-hipcc "${CUSAN_HIPCC_EXEC}")
+else()
+  configure_cusan_wrapper(cusan-clang "${CUSAN_CLANG_EXEC}")
+  configure_cusan_wrapper(cusan-clang++ "${CUSAN_CLANGCXX_EXEC}")
+endif()
 
 install(
-  PROGRAMS
-    ${CMAKE_CURRENT_BINARY_DIR}/cusan-clang++${CMAKE_DEBUG_POSTFIX}
-    ${CMAKE_CURRENT_BINARY_DIR}/cusan-clang${CMAKE_DEBUG_POSTFIX}
-    ${CMAKE_CURRENT_BINARY_DIR}/cusan-hipcc${CMAKE_DEBUG_POSTFIX}
-    $<$<BOOL:${MPI_C_FOUND}>:${CMAKE_CURRENT_BINARY_DIR}/cusan-mpicc${CMAKE_DEBUG_POSTFIX}>
-    $<$<BOOL:${MPI_CXX_FOUND}>:${CMAKE_CURRENT_BINARY_DIR}/cusan-mpic++${CMAKE_DEBUG_POSTFIX}>
+  PROGRAMS ${CUSAN_SCRIPTS_TO_INSTALL}
   DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
