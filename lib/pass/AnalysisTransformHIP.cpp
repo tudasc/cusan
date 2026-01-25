@@ -392,7 +392,6 @@ llvm::SmallVector<Value*, 1> HipEventQuery::map_return_value(IRBuilder<>& irb, V
   return {result};
 }
 
-
 //  HipMemcpy2DInstrumenter
 
 HipMemcpy2DInstrumenter::HipMemcpy2DInstrumenter(callback::FunctionDecl* decls) {
@@ -420,17 +419,16 @@ llvm::SmallVector<Value*> HipMemcpy2DAsyncInstrumenter::map_arguments(IRBuilder<
   // void* target, size_t dpitch, const void* from, size_t spitch, size_t width, size_t height, cusan_MemcpyKind kind,
   // stream
   assert(args.size() == 8);
-  auto* dst_ptr   = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
-  auto* dpitch    = args[1];
-  auto* src_ptr   = irb.CreateBitOrPointerCast(args[2], get_void_ptr_type(irb));
-  auto* spitch    = args[3];
-  auto* width     = args[4];
-  auto* height    = args[5];
-  auto* kind      = args[6];
+  auto* dst_ptr    = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
+  auto* dpitch     = args[1];
+  auto* src_ptr    = irb.CreateBitOrPointerCast(args[2], get_void_ptr_type(irb));
+  auto* spitch     = args[3];
+  auto* width      = args[4];
+  auto* height     = args[5];
+  auto* kind       = args[6];
   auto* hip_stream = irb.CreateBitOrPointerCast(args[7], get_void_ptr_type(irb));
   return {dst_ptr, dpitch, src_ptr, spitch, width, height, kind, hip_stream};
 }
-
 
 // HipStreamCreateWithPriorityInstrumenter
 
@@ -439,16 +437,12 @@ HipStreamCreateWithPriorityInstrumenter::HipStreamCreateWithPriorityInstrumenter
 }
 
 llvm::SmallVector<Value*> HipStreamCreateWithPriorityInstrumenter::map_arguments(IRBuilder<>& irb,
-                                                                              llvm::ArrayRef<Value*> args) {
+                                                                                 llvm::ArrayRef<Value*> args) {
   assert(args.size() == 3);
   auto* hip_stream_void_ptr_ptr = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
-  auto* flags                  = args[1];
+  auto* flags                   = args[1];
   return {hip_stream_void_ptr_ptr, flags};
 }
-
-
-
-
 
 // HipMemsetAsyncInstrumenter
 

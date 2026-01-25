@@ -1,8 +1,8 @@
 #ifndef CUSAN_GPUAWAREMPI_H
 #define CUSAN_GPUAWAREMPI_H
 
-#include <mpi.h>
 #include <mpi-ext.h>
+#include <mpi.h>
 #include <stdbool.h>
 #include <stdio.h>
 

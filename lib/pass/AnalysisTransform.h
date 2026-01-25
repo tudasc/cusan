@@ -370,7 +370,6 @@ class HipStreamQuery : public SimpleInstrumenter<HipStreamQuery> {
 // BasicInstrumenterDecl(CudaHostAlloc);
 // BasicInstrumenterDecl(CudaMallocHost);
 
-
 // BasicInstrumenterDecl(CudaHostRegister);
 // BasicInstrumenterDecl(CudaHostUnregister);
 // BasicInstrumenterDecl(CudaHostFree);
