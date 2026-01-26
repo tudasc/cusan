@@ -184,8 +184,6 @@ bool CusanPass::runOnFunc(llvm::Function& function) {
   modified |= transform::StreamCreateWithPriorityInstrumenter(&cusan_decls_).instrument(function);
   modified |= transform::CudaMallocPitch(&cusan_decls_).instrument(function);
 
-
-
   modified |= transform::HipDeviceSyncInstrumenter(&cusan_decls_).instrument(function);
   modified |= transform::HipMemcpyAsyncInstrumenter(&cusan_decls_).instrument(function);
   modified |= transform::HipMemcpyInstrumenter(&cusan_decls_).instrument(function);

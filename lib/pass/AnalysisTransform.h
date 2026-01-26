@@ -33,15 +33,6 @@ namespace analysis {
 using KernelArgInfo = cusan::FunctionArg;
 
 namespace helper {
-template <typename... Strings>
-inline bool ends_with_any_of(const std::string& name, Strings&&... searching_names) {
-  const llvm::StringRef name_ref{name};
-#if LLVM_VERSION_MAJOR > 15
-  return (name_ref.ends_with(searching_names) || ...);
-#else
-  return (name_ref.endswith(searching_names) || ...);
-#endif
-}
 
 inline bool does_name_match(const std::string& model_kernel_name, llvm::CallBase& cb) {
   assert(cb.getFunction() != nullptr && "Callbase requires function.");
@@ -58,7 +49,7 @@ inline bool does_name_match(const std::string& model_kernel_name, llvm::CallBase
 
   LOG_DEBUG("Check stub \"" << stub_name << "\" ends with \"" << searching_name << "\" or \"" << searching_without_type
                             << "\"");
-  return helper::ends_with_any_of(stub_name, searching_name, searching_without_type);
+  return util::ends_with_any_of(stub_name, searching_name, searching_without_type);
 }
 
 }  // namespace helper
@@ -369,7 +360,6 @@ class HipStreamQuery : public SimpleInstrumenter<HipStreamQuery> {
 // BasicInstrumenterDecl(EventRecordFlagsInstrumenter);
 // BasicInstrumenterDecl(CudaHostAlloc);
 // BasicInstrumenterDecl(CudaMallocHost);
-
 
 // BasicInstrumenterDecl(CudaHostRegister);
 // BasicInstrumenterDecl(CudaHostUnregister);

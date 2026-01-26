@@ -21,9 +21,9 @@ function cusan_global_init_fn() {
       local -r cusan_pass="@CUSAN_PASS_DIR@/$<TARGET_FILE_NAME:cusan::TransformPass>"
     else
       # shellcheck disable=SC2155
-      local -r cusan_bin_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+      local -r cusan_bin_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
       # shellcheck disable=SC2155
-      local -r cusan_install_dir="$(dirname "${cusan_bin_dir}")"
+      local -r cusan_install_dir=$(dirname "${cusan_bin_dir}")
       local -r cusan_lib_dir="${cusan_install_dir}/@CMAKE_INSTALL_LIBDIR@"
       local -r cusan_include_dir="-I${cusan_install_dir}/@CMAKE_INSTALL_INCLUDEDIR@/@PROJECT_NAME@"
       local -r cusan_pass="${cusan_lib_dir}/$<TARGET_FILE_NAME:cusan::TransformPass>"
@@ -36,16 +36,14 @@ function cusan_global_init_fn() {
   readonly cusan_san_flags="@CUSAN_SAN_FLAG@"
 
   readonly cusan_includes="${cusan_include_dir}"
-  readonly cusan_plugin="-fpass-plugin="${cusan_pass}""
+  readonly cusan_plugin="-fpass-plugin=${cusan_pass}"
 
   readonly cusan_compiler="@CUSAN_COMPILER@"
 
-  cusan_to_llvm_more_flags=""
-}
+  readonly cusan_mode="@CUSAN_WRAPPER_MODE@"
+  readonly cusan_extra_ldflags="@CUSAN_EXTRA_LDFLAGS@"
 
-function cusan_global_cuda_init_fn() {
-  # TODO: use generator expr. w.r.t. CUDA::cudart
-  readonly cusan_cuda_ldflags="-L@CUDAToolkit_LIBRARY_DIR@/ -lcudart -lcudart_static -lcudadevrt"
+  cusan_to_llvm_more_flags=""
 }
 
 function cusan_is_cusan_linking_fn() {
@@ -60,24 +58,24 @@ function cusan_is_cusan_linking_fn() {
   return 1
 }
 
-function cusan_parse_commands_fn() {
-  cusan_non_cuda_args=""
-  cusan_found_cuda=0
+function cusan_parse_commands_cuda_fn() {
+  cusan_found_src=0
   cusan_cuda_code_arch=""
   cusan_cuda_compute_arch=""
+  cusan_non_src_args=()
 
   while (("$#")); do
     case "$1" in
     *.cu)
-      cusan_found_cuda=1
-      cusan_non_cuda_args="$cusan_non_cuda_args $1"
+      cusan_found_src=1
+      cusan_non_src_args+=("$1")
       shift 1
       ;;
     -x)
       if [ "$2" == "cuda" ]; then
-        cusan_found_cuda=1
+        cusan_found_src=1
       fi
-      cusan_non_cuda_args="$cusan_non_cuda_args $1 $2"
+      cusan_non_src_args+=("$1" "$2")
       shift 2
       ;;
     --cuda-gpu-arch=*)
@@ -106,23 +104,56 @@ function cusan_parse_commands_fn() {
       if [ "@CUSAN_NEW_PM_REQUIRED@" == 1 ]; then
         export CUSAN_KERNEL_DATA_FILE="${1##--cusan-kernel-data=}"
       else
-        cusan_non_cuda_args+=" $1"    
+        cusan_non_src_args+=("$1")
       fi
       shift
     ;;
-    *) # preserve other arguments
-      cusan_non_cuda_args="$cusan_non_cuda_args $1"
+    *)
+      cusan_non_src_args+=("$1")
       shift
       ;;
     esac
   done
-  # set other positional arguments in their proper place
-  set -- "cusan_non_cuda_args"
+}
+
+function cusan_parse_commands_hip_fn() {
+  cusan_found_src=0
+  cusan_non_src_args=()
+  while (("$#")); do
+    case "$1" in
+    *.hip)
+      cusan_found_src=1
+      cusan_non_src_args+=("$1")
+      shift 1
+      ;;
+    -x)
+      if [ "$2" == "hip" ]; then
+        cusan_found_src=1
+      fi
+      cusan_non_src_args+=("$1" "$2")
+      shift 2
+      ;;
+    -gencode)
+      shift 1
+      ;;
+    --cusan-kernel-data=*)
+      if [ "@CUSAN_NEW_PM_REQUIRED@" == 1 ]; then
+        export CUSAN_KERNEL_DATA_FILE="${1##--cusan-kernel-data=}"
+      else
+        cusan_non_src_args+=("$1")
+      fi
+      shift
+    ;;
+    *)
+      cusan_non_src_args+=("$1")
+      shift
+      ;;
+    esac
+  done
 }
 
 function cusan_main_driver_fn() {
   cusan_global_init_fn
-  cusan_global_cuda_init_fn
 
   cusan_is_wrapper_disabled_fn
   readonly cusan_disabled=$?
@@ -134,17 +165,27 @@ function cusan_main_driver_fn() {
 
   cusan_is_cusan_linking_fn "$@"
   local -r cusan_linking=$?
-  
-  cusan_parse_commands_fn "$@"
 
-  if [ "$cusan_found_cuda" == 1 ]; then
-    local cusan_cuda_flags="--cuda-gpu-arch=${cusan_cuda_code_arch}"
+  local cusan_mode_flags=()
+  if [ "${cusan_mode}" == "CUDA" ]; then
+    cusan_parse_commands_cuda_fn "$@"
+    if [ "$cusan_found_src" == 1 ] && [ -n "${cusan_cuda_code_arch}" ]; then
+      cusan_mode_flags+=("--cuda-gpu-arch=${cusan_cuda_code_arch}")
+    fi
+  else
+    cusan_parse_commands_hip_fn "$@"
   fi
-  
+
   if [ "$cusan_linking" == 1 ]; then
-    cusan_cuda_flags+=" ${cusan_cuda_ldflags} ${cusan_ldflags}"
+    if [ -n "${cusan_extra_ldflags}" ]; then
+      # shellcheck disable=SC2206
+      cusan_mode_flags+=(${cusan_extra_ldflags})
+    fi
+    # shellcheck disable=SC2206
+    cusan_mode_flags+=(${cusan_ldflags})
   fi
-  $cusan_compiler ${cusan_plugin} ${cusan_includes} ${cusan_san_flags} ${cusan_cuda_flags} ${cusan_non_cuda_args}
+  # shellcheck disable=SC2086
+  $cusan_compiler ${cusan_plugin} ${cusan_includes} ${cusan_san_flags} "${cusan_mode_flags[@]}" "${cusan_non_src_args[@]}"
 }
 
 cusan_main_driver_fn "$@"
