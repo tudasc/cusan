@@ -1,7 +1,7 @@
 // clang-format off
 // RUN: %rm-file %t.yaml 
 // RUN: %wrapper-mpicc %clang-pass-only-args --cusan-kernel-data=%t.yaml -x cuda --cuda-gpu-arch=sm_72 %s 2>&1 | %filecheck %s  -DFILENAME=%s --allow-empty --check-prefix CHECK-LLVM-IR
-// REQUIRES: cuda
+// REQUIRES: mpi && cuda
 
 
 // CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaDeviceSynchronize
@@ -11,6 +11,7 @@
 // CHECK-LLVM-IR: {{call|invoke}} void @_cusan_sync_device
 // CHECK-LLVM-IR: {{(call|invoke)}} i32 @cudaMemcpy({{i8\*|ptr}} {{.*}}[[target:%[0-9a-z]+]], {{i8\*|ptr}} {{.*}}[[from:%[0-9a-z]+]],
 // CHECK-LLVM-IR: {{(call|invoke)}} void @_cusan_memcpy({{i8\*|ptr}} {{.*}}[[target]], {{i8\*|ptr}} {{.*}}[[from]],
+
 
 // clang-format on
 

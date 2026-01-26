@@ -22,7 +22,7 @@
 // CHECK-NEXT: subarg: {{.*}}ptr: 0, rw: ReadWrite
 // CHECK-NOT: Handling Arg:
 
-// REQUIRES: cuda
+// REQUIRES: mpi && cuda
 
 // clang-format on
 

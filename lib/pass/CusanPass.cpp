@@ -1,5 +1,5 @@
 // cusan library
-// Copyright (c) 2023-2024 cusan authors
+// Copyright (c) 2023-2025 cusan authors
 // Distributed under the BSD 3-Clause License license.
 // (See accompanying file LICENSE)
 // SPDX-License-Identifier: BSD-3-Clause
@@ -183,6 +183,15 @@ bool CusanPass::runOnFunc(llvm::Function& function) {
   modified |= transform::StreamCreateWithFlagsInstrumenter(&cusan_decls_).instrument(function);
   modified |= transform::StreamCreateWithPriorityInstrumenter(&cusan_decls_).instrument(function);
   modified |= transform::CudaMallocPitch(&cusan_decls_).instrument(function);
+  modified |= transform::CudaChooseDevice(&cusan_decls_).instrument(function);
+  modified |= transform::CudaSetDevice(&cusan_decls_).instrument(function);
+
+  // callbacks
+#ifdef CUSAN_DEVICE_SYNC_CALLBACKS
+  modified |= transform::CudaDeviceSyncCallback(&cusan_decls_).instrument(function);
+  modified |= transform::CudaEventSyncCallback(&cusan_decls_).instrument(function);
+  modified |= transform::CudaStreamSyncCallback(&cusan_decls_).instrument(function);
+#endif
 
   modified |= transform::HipDeviceSyncInstrumenter(&cusan_decls_).instrument(function);
   modified |= transform::HipMemcpyAsyncInstrumenter(&cusan_decls_).instrument(function);

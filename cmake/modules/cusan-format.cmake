@@ -20,11 +20,12 @@ function(cusan_target_format target comment)
     filter_dir(${exclude})
   endforeach()
 
-  find_program(FORMAT_COMMAND
+  find_program(CLANG_FORMAT_COMMAND
                NAMES clang-format-${LLVM_VERSION_MAJOR} clang-format)
-  if(FORMAT_COMMAND)
+  mark_as_advanced(CLANG_FORMAT_COMMAND)
+  if(CLANG_FORMAT_COMMAND)
     add_custom_target(${target}
-      COMMAND ${FORMAT_COMMAND} -i -style=file ${ARG_OTHER} ${ARG_UNPARSED_ARGUMENTS}
+      COMMAND ${CLANG_FORMAT_COMMAND} -i -style=file ${ARG_OTHER} ${ARG_UNPARSED_ARGUMENTS}
               ${ALL_CXX_FILES}
       WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
       COMMENT "${comment}"

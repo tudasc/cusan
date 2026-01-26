@@ -11,7 +11,14 @@
 #include <hip/hip_runtime.h>
 
 namespace cusan::runtime {
-cusan_MemcpyKind hip_infer_memcpy_direction(const void* target, const void* from) {
+
+DeviceID get_current_device_id() {
+  DeviceID res;
+  hipGetDevice(&res);
+  return res;
+}
+
+cusan_memcpy_kind infer_memcpy_direction(const void* target, const void* from) {
   // Note: unlike CUDA they do not specify that unified addressing is needed
 
   hipPointerAttribute_t target_attribs;

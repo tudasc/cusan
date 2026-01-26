@@ -1,5 +1,5 @@
 // cusan library
-// Copyright (c) 2023-2024 cusan authors
+// Copyright (c) 2023-2025 cusan authors
 // Distributed under the BSD 3-Clause License license.
 // (See accompanying file LICENSE)
 // SPDX-License-Identifier: BSD-3-Clause
@@ -41,10 +41,12 @@ struct FunctionDecl {
   CusanFunction cusan_host_register{"_cusan_host_register"};
   CusanFunction cusan_host_unregister{"_cusan_host_unregister"};
   CusanFunction cusan_device_alloc{"_cusan_device_alloc"};
+  CusanFunction cusan_set_device{"_cusan_set_device"};
+  CusanFunction cusan_choose_device{"_cusan_choose_device"};
   CusanFunction cusan_device_free{"_cusan_device_free"};
   CusanFunction cusan_stream_query{"_cusan_stream_query"};
   CusanFunction cusan_event_query{"_cusan_event_query"};
-
+  CusanFunction cusan_sync_callback{"cusan_sync_callback"};
   void initialize(llvm::Module& m);
 };
 

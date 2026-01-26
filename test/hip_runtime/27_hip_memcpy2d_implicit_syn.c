@@ -14,7 +14,6 @@
 
 // CHECK-SYNC-NOT: data race
 
-// REQUIRES:
 
 #include <assert.h>
 #include <hip/hip_runtime.h>

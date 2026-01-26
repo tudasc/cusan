@@ -39,6 +39,8 @@ option(CUSAN_HIP "Enable hip support" OFF)
 option(CUSAN_SOFTCOUNTER "Print runtime counters" OFF)
 option(CUSAN_SYNC_DETAIL_LEVEL "Enable implicit sync analysis of memcpy/memset" ON)
 
+option(CUSAN_DEVICE_SYNC_CALLBACKS "Enable runtime callbacks after sync calls" OFF)
+
 option(CUSAN_TEST_WORKAROUNDS "Enable workarounds for MPI + TSan regarding runtime tests" ON)
 mark_as_advanced(CUSAN_TEST_WORKAROUNDS)
 
@@ -47,7 +49,8 @@ if(NOT CUSAN_HIP)
 else()
   find_package(hip REQUIRED)
 endif()
-find_package(MPI REQUIRED)
+find_package(MPI QUIET)
+
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
   set(CUSAN_LOG_LEVEL_RT 0 CACHE STRING "" FORCE)

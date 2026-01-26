@@ -2,13 +2,15 @@ cmake_minimum_required(VERSION 3.20)
 
 project(
     cusan
-    VERSION 0.1.0
+    VERSION 0.3.0
     DESCRIPTION "A data race detector for CUDA based on ThreadSanitizer"
-    HOMEPAGE_URL "https://github.com/ahueck/cusan"
+    HOMEPAGE_URL "https://github.com/tudasc/cusan"
     LANGUAGES CXX C
 )
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 list(
   APPEND
@@ -27,11 +29,6 @@ cusan_target_format(
 add_subdirectory(externals)
 add_subdirectory(lib)
 add_subdirectory(scripts)
-
-if(PROJECT_IS_TOP_LEVEL)
-  enable_testing()
-  add_subdirectory(test)
-endif()
 
 write_basic_package_version_file(
   ${CMAKE_CURRENT_BINARY_DIR}/cusanConfigVersion.cmake
@@ -65,4 +62,9 @@ if(PROJECT_IS_TOP_LEVEL)
       INCLUDE_QUIET_PACKAGES
       QUIET_ON_EMPTY
     )
+endif()
+
+if(PROJECT_IS_TOP_LEVEL)
+  enable_testing()
+  add_subdirectory(test)
 endif()

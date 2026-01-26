@@ -1,3 +1,9 @@
+// cusan library
+// Copyright (c) 2023-2025 cusan authors
+// Distributed under the BSD 3-Clause License license.
+// (See accompanying file LICENSE)
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "AnalysisTransform.h"
 
 namespace cusan {
@@ -267,7 +273,7 @@ llvm::SmallVector<Value*> CudaMemcpyInstrumenter::map_arguments(IRBuilder<>& irb
   auto* src_ptr = irb.CreateBitOrPointerCast(args[1], get_void_ptr_type(irb));
   auto* count   = args[2];
   auto* kind    = args[3];
-  return {dst_ptr, src_ptr, count, kind, irb.getInt8(1)};
+  return {dst_ptr, src_ptr, count, kind};
 }
 
 //  CudaMemcpy2DInstrumenter
@@ -285,7 +291,7 @@ llvm::SmallVector<Value*> CudaMemcpy2DInstrumenter::map_arguments(IRBuilder<>& i
   auto* width   = args[4];
   auto* height  = args[5];
   auto* kind    = args[6];
-  return {dst_ptr, dpitch, src_ptr, spitch, width, height, kind, irb.getInt8(1)};
+  return {dst_ptr, dpitch, src_ptr, spitch, width, height, kind};
 }
 
 // CudaMemcpy2DAsyncInstrumenter
@@ -554,6 +560,48 @@ llvm::SmallVector<Value*> CudaFree::map_arguments(IRBuilder<>& irb, llvm::ArrayR
   return {ptr};
 }
 
+// CudaMallocPitch
+
+CudaMallocPitch::CudaMallocPitch(callback::FunctionDecl* decls) {
+  setup("cudaMallocPitch", &decls->cusan_device_alloc.f);
+}
+llvm::SmallVector<Value*> CudaMallocPitch::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  //(void** devPtr, size_t* pitch, size_t width, size_t height )
+  assert(args.size() == 4);
+  auto* ptr = irb.CreateBitOrPointerCast(args[0], get_void_ptr_type(irb));
+
+  //"The function may pad the allocation"
+  //"*pitch by cudaMallocPitch() is the width in bytes of the allocation"
+  auto* pitch = irb.CreateLoad(irb.getIntPtrTy(irb.GetInsertBlock()->getModule()->getDataLayout()), args[1]);
+  // auto* width = args[2];
+  auto* height = args[3];
+
+  auto* real_size = irb.CreateMul(pitch, height);
+  return {ptr, real_size};
+}
+
+// CudaSetDevice
+
+CudaSetDevice::CudaSetDevice(callback::FunctionDecl* decls) {
+  setup("cudaSetDevice", &decls->cusan_set_device.f);
+}
+llvm::SmallVector<Value*> CudaSetDevice::map_arguments(IRBuilder<>&, llvm::ArrayRef<Value*> args) {
+  // cudaSetDevice ( int  device )
+  assert(args.size() == 1);
+  return {args[0]};
+}
+
+// CudaCHooseDevice
+
+CudaChooseDevice::CudaChooseDevice(callback::FunctionDecl* decls) {
+  setup("cudaChooseDevice", &decls->cusan_choose_device.f);
+}
+llvm::SmallVector<Value*> CudaChooseDevice::map_arguments(IRBuilder<>&, llvm::ArrayRef<Value*> args) {
+  // cudaChooseDevice ( int* device, const cudaDeviceProp* prop )
+  assert(args.size() == 2);
+  return {args[0]};
+}
+
 // CudaStreamQuery
 
 CudaStreamQuery::CudaStreamQuery(callback::FunctionDecl* decls) {
@@ -583,6 +631,47 @@ llvm::SmallVector<Value*> CudaEventQuery::map_arguments(IRBuilder<>& irb, llvm::
 }
 llvm::SmallVector<Value*, 1> CudaEventQuery::map_return_value(IRBuilder<>& irb, Value* result) {
   (void)irb;
+  return {result};
+}
+
+CudaStreamSyncCallback::CudaStreamSyncCallback(callback::FunctionDecl* decls) {
+  setup("cudaStreamSynchronize", &decls->cusan_sync_callback.f);
+}
+llvm::SmallVector<Value*> CudaStreamSyncCallback::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  //( void* stream)
+  assert(args.size() == 1);
+  return {irb.getInt8(1), args[0]};
+}
+llvm::SmallVector<Value*, 1> CudaStreamSyncCallback::map_return_value(IRBuilder<>&, Value* result) {
+  return {result};
+}
+
+CudaEventSyncCallback::CudaEventSyncCallback(callback::FunctionDecl* decls) {
+  setup("cudaEventSynchronize", &decls->cusan_sync_callback.f);
+}
+llvm::SmallVector<Value*> CudaEventSyncCallback::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  //( void* event)
+  assert(args.size() == 1);
+  return {irb.getInt8(2), args[0]};
+}
+llvm::SmallVector<Value*, 1> CudaEventSyncCallback::map_return_value(IRBuilder<>&, Value* result) {
+  return {result};
+}
+
+CudaDeviceSyncCallback::CudaDeviceSyncCallback(callback::FunctionDecl* decls) {
+  setup("cudaDeviceSynchronize", &decls->cusan_sync_callback.f);
+}
+llvm::SmallVector<Value*> CudaDeviceSyncCallback::map_arguments(IRBuilder<>& irb, llvm::ArrayRef<Value*> args) {
+  //( )
+  assert(args.size() == 0);
+#if LLVM_VERSION_MAJOR < 15
+  auto* ptr_type = PointerType::getUnqual(irb.getContext());
+#else
+  auto* ptr_type = irb.getPtrTy();
+#endif
+  return {irb.getInt8(0), ConstantPointerNull::get(ptr_type)};
+}
+llvm::SmallVector<Value*, 1> CudaDeviceSyncCallback::map_return_value(IRBuilder<>&, Value* result) {
   return {result};
 }
 

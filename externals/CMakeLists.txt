@@ -42,3 +42,9 @@ if(CUSAN_TYPEART)
     )
     FetchContent_MakeAvailable(typeart)
 endif()
+
+mark_as_advanced(
+    FETCHCONTENT_BASE_DIR
+    FETCHCONTENT_FULLY_DISCONNECTED
+    FETCHCONTENT_QUIET
+    FETCHCONTENT_UPDATES_DISCONNECTED)
