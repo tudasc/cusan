@@ -1,6 +1,6 @@
 // clang-format off
 // RUN: %wrapper-hip %clang_args -x hip %s -o %cusan_test_dir/%basename_t.exe
-// RUN: %tsan-options %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s
+// RUN: %tsan-options %cusan_test_dir/%basename_t.exe 2>&1 | %filecheck %s --check-prefixes=%sync-check
 
 // RUN: %wrapper-hip %clang_args -x hip -DCUSAN_SYNC %s -o %cusan_test_dir/%basename_t-sync.exe
 // RUN: %tsan-options %cusan_test_dir/%basename_t-sync.exe 2>&1 | %filecheck %s --allow-empty --check-prefix CHECK-SYNC
@@ -10,7 +10,7 @@
 // clang-format on
 
 // CHECK-DAG: data race
-// CHECK-DAG: [Error] sync
+// SYNC-ERROR-DAG: [Error] sync
 
 // CHECK-SYNC-NOT: data race
 // CHECK-SYNC-NOT: [Error] sync
