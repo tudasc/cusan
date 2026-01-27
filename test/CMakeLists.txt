@@ -40,6 +40,7 @@ function(configure_cusan_lit_site_cfg input output)
   pythonize_bool(${MPI_FOUND} CUSAN_HAS_MPI)
   pythonize_bool(${CUSAN_DEVICE_SYNC_CALLBACKS} CUSAN_HAS_SYNC_CALLBACKS)
   pythonize_bool(${CUSAN_HIP} CUSAN_WITH_HIP)
+  pythonize_bool(${CUSAN_CONTAINER} CUSAN_CONTAINER_ENV)
 
   cusan_target_generate_file(${input} ${output})
 endfunction()

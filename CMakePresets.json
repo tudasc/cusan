@@ -45,6 +45,17 @@
       }
     },
     {
+      "name": "develop-container",
+      "displayName": "Development container config (debug)",
+      "binaryDir": "${sourceDir}/build",
+      "inherits": [
+        "develop"
+      ],
+      "cacheVariables": {
+        "CUSAN_CONTAINER": "ON"
+      }
+    },
+    {
       "name": "release",
       "displayName": "Release config",
       "description": "Default release build options for Clang",
@@ -55,6 +66,17 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CUSAN_LOG_LEVEL_RT": "0"
+      }
+    },
+    {
+      "name": "release-container",
+      "displayName": "Release container config",
+      "binaryDir": "${sourceDir}/build",
+      "inherits": [
+        "release"
+      ],
+      "cacheVariables": {
+        "CUSAN_CONTAINER": "ON"
       }
     }
   ]

@@ -34,6 +34,7 @@ config.cusan_typeart = @CUSAN_HAS_TYPEART@
 config.cusan_mpi = @CUSAN_HAS_MPI@
 config.cusan_sync_callback = @CUSAN_HAS_SYNC_CALLBACKS@
 config.cusan_hip = @CUSAN_WITH_HIP@
+config.cusan_in_container = @CUSAN_CONTAINER_ENV@
 
 # Let the main config do the real work.
 config.loaded_site_config = True

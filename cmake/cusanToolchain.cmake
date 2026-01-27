@@ -44,6 +44,9 @@ option(CUSAN_DEVICE_SYNC_CALLBACKS "Enable runtime callbacks after sync calls" O
 option(CUSAN_TEST_WORKAROUNDS "Enable workarounds for MPI + TSan regarding runtime tests" ON)
 mark_as_advanced(CUSAN_TEST_WORKAROUNDS)
 
+option(CUSAN_CONTAINER "Enable workarounds for CuSan in a container" OFF)
+mark_as_advanced(CUSAN_TEST_WORKAROUNDS)
+
 if(NOT CUSAN_HIP)
   find_package(CUDAToolkit REQUIRED)
 else()
