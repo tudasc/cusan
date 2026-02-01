@@ -51,7 +51,7 @@ int main(int argc, char* argv[]) {
   cudaMalloc(&d_data2, size * sizeof(int));
   cudaDeviceSynchronize();
 
-  write_kernel_delay<<<blocksPerGrid, threadsPerBlock, 0, stream1>>>(managed_data, size, 99999);
+  write_kernel_delay<<<blocksPerGrid, threadsPerBlock, 0, stream1>>>(managed_data, size, 999999);
   write_kernel_delay<<<blocksPerGrid, threadsPerBlock, 0, 0>>>(d_data2, size, 1);
 #ifdef CUSAN_SYNC
   cudaStreamSynchronize(0);

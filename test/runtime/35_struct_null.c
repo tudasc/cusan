@@ -21,8 +21,15 @@ struct BufferStorage {
   int** buff2;
 };
 
-__global__ void kernel(BufferStorage storage, const int N, bool write_second) {
+__global__ void kernel(BufferStorage storage, const int N, bool write_second, const unsigned int delay) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
+#if __CUDA_ARCH__ >= 700
+  for (int i = 0; i < tid; i++) {
+    __nanosleep(delay);
+  }
+#else
+  printf(">>> __CUDA_ARCH__ !\n");
+#endif
   if (tid < N) {
     storage.buff1[tid] = (tid + 1) * 32;
     if (write_second) {
@@ -42,7 +49,7 @@ int main(int argc, char* argv[]) {
 
   buffStor.buff2 = NULL;
 
-  kernel<<<blocksPerGrid, threadsPerBlock, 0>>>(buffStor, size, false);
+  kernel<<<blocksPerGrid, threadsPerBlock, 0>>>(buffStor, size, false, 999999);
 #ifdef CUSAN_SYNC
   cudaDeviceSynchronize();
 #endif
