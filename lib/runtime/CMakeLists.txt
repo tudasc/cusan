@@ -18,9 +18,10 @@ if (MPI_FOUND)
     cusan_mpi_interceptor
     PRIVATE CUSAN_LOG_LEVEL=${CUSAN_LOG_LEVEL_RT}
     LLVM_VERSION_MAJOR=${LLVM_VERSION_MAJOR}
+    $<$<BOOL:${CUSAN_SYNC_DETAIL_LEVEL}>:CUSAN_SYNC_DETAIL_LEVEL=1>
     $<$<BOOL:${CUSAN_FIBERPOOL}>:CUSAN_FIBERPOOL=1>
     $<$<BOOL:${CUSAN_HIP}>:CUSAN_HIP=1>
-   $<$<BOOL:${CUSAN_TYPEART}>:CUSAN_TYPEART=1>
+    $<$<BOOL:${CUSAN_TYPEART}>:CUSAN_TYPEART=1>
     $<$<BOOL:${CUSAN_SOFTCOUNTER}>:CUSAN_SOFTCOUNTER>
   )
 
@@ -46,7 +47,7 @@ if (MPI_FOUND)
 
   set(CONFIG_NAME cusanMPIInterceptor)
   set(TARGETS_EXPORT_NAME ${CONFIG_NAME}Targets)
-
+  message(installing cusan mpi interceptor)
   install(
     TARGETS cusan_mpi_interceptor
     EXPORT ${TARGETS_EXPORT_NAME}

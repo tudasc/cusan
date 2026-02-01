@@ -114,7 +114,7 @@ set(CUSAN_TEST_DEPENDS
   cusan::Analysis
 )
 
-if(FOUND_MPI)
+if(MPI_FOUND)
   list(APPEND CUSAN_TEST_DEPENDS cusan::MPI_Interceptor)
 endif()
 
