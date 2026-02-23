@@ -94,12 +94,12 @@ void __attribute__((weak)) AnnotateRWLockCreate(const char* file, int line, cons
 void __attribute__((weak)) AnnotateRWLockDestroy(const char* file, int line, const volatile void* cv) {
   FALLBACK_PRINT(__func__);
 }
-void __attribute__((weak))
-AnnotateRWLockAcquired(const char* file, int line, const volatile void* cv, unsigned long long is_w) {
+void __attribute__((weak)) AnnotateRWLockAcquired(const char* file, int line, const volatile void* cv,
+                                                  unsigned long long is_w) {
   FALLBACK_PRINT(__func__);
 }
-void __attribute__((weak))
-AnnotateRWLockReleased(const char* file, int line, const volatile void* cv, unsigned long long is_w) {
+void __attribute__((weak)) AnnotateRWLockReleased(const char* file, int line, const volatile void* cv,
+                                                  unsigned long long is_w) {
   FALLBACK_PRINT(__func__);
 }
 
@@ -152,7 +152,7 @@ void __attribute__((weak)) __tsan_read_range_pc(const void* a, uptr size, void* 
 void __attribute__((weak)) __tsan_write_range_pc(void* a, uptr size, void* pc) {
   char* addr = (char*)a;
   uptr len   = ((uptr)addr) % 8;
-  printf("__tsan_write_range_pc(%p, %li, %li), %li\n", addr, size, pc, len);
+  // printf("__tsan_write_range_pc(%p, %li, %li), %li\n", addr, size, pc, len);
   if (size < len)
     len = size;
   annotateHelper(write, 4) annotateHelper(write, 2) annotateHelper(write, 1) for (; size > 7; size -= 8) {
